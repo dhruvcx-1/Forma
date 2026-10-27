@@ -167,6 +167,11 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
         username: p.username,
         displayName: p.display_name,
         display_name: p.display_name,
+        avatar_url: p.avatar_url,
+        avatarUrl: p.avatar_url,
+        bio: p.bio,
+        is_public: p.is_public,
+        isPublic: p.is_public,
         created_at: p.created_at,
         createdAt: p.created_at,
       };

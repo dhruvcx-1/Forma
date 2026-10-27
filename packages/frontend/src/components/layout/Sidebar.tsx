@@ -138,9 +138,17 @@ export function Sidebar({ collapsed = false, onClose }: SidebarProps) {
             )}
             title="Account settings"
           >
-            <div className="w-7 h-7 rounded-full gradient-violet flex items-center justify-center shrink-0 shadow-sm">
-              <User2 className="h-3.5 w-3.5 text-white" />
-            </div>
+            {auth.user.avatar_url ? (
+              <img
+                src={auth.user.avatar_url}
+                alt={auth.user.displayName || auth.user.username}
+                className="w-7 h-7 rounded-full object-cover border border-primary/30 shrink-0 shadow-sm"
+              />
+            ) : (
+              <div className="w-7 h-7 rounded-full gradient-violet flex items-center justify-center shrink-0 shadow-sm">
+                <User2 className="h-3.5 w-3.5 text-white" />
+              </div>
+            )}
             <AnimatePresence>
               {!collapsed && (
                 <motion.div

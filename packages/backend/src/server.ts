@@ -17,6 +17,8 @@ import photosRoutes from './routes/photos.js';
 import dataRoutes from './routes/data.js';
 import settingsRoutes from './routes/settings.js';
 import bodyCompositionRoutes from './routes/body-composition.js';
+import profileRoutes from './routes/profile.js';
+import publicRoutes from './routes/public.js';
 
 // ---------------------------------------------------------------------------
 // Environment validation
@@ -88,6 +90,8 @@ await fastify.register(photosRoutes);
 await fastify.register(dataRoutes);
 await fastify.register(settingsRoutes);
 await fastify.register(bodyCompositionRoutes);
+await fastify.register(profileRoutes);
+await fastify.register(publicRoutes);
 
 // ---------------------------------------------------------------------------
 // Health check

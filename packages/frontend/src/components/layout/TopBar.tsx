@@ -98,9 +98,17 @@ export function TopBar({ sidebarCollapsed, onToggleSidebar, onOpenMobileMenu }: 
           }
           title="User Profile & Settings"
         >
-          <div className="w-7 h-7 rounded-full gradient-violet flex items-center justify-center text-[11px] font-bold text-white shadow-sm">
-            {userInitial || <User2 className="h-3.5 w-3.5" />}
-          </div>
+          {auth?.user?.avatar_url ? (
+            <img
+              src={auth.user.avatar_url}
+              alt="Avatar"
+              className="w-7 h-7 rounded-full object-cover border border-primary/30 shadow-sm"
+            />
+          ) : (
+            <div className="w-7 h-7 rounded-full gradient-violet flex items-center justify-center text-[11px] font-bold text-white shadow-sm">
+              {userInitial || <User2 className="h-3.5 w-3.5" />}
+            </div>
+          )}
         </NavLink>
       </div>
     </header>

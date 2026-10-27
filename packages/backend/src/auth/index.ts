@@ -11,6 +11,9 @@ export interface Profile {
   id: string;
   username: string;
   display_name: string | null;
+  avatar_url: string | null;
+  bio: string | null;
+  is_public: boolean;
   created_at: string;
 }
 
@@ -24,6 +27,9 @@ interface ProfileRow {
   id: string;
   username: string;
   display_name: string | null;
+  avatar_url: string | null;
+  bio: string | null;
+  is_public: number;
   created_at: string;
 }
 
@@ -75,7 +81,7 @@ const stmtGetSession = db.prepare<[string], SessionRow>(`
 `);
 
 const stmtGetProfile = db.prepare<[string], ProfileRow>(`
-  SELECT id, username, display_name, created_at
+  SELECT id, username, display_name, avatar_url, bio, is_public, created_at
   FROM profiles
   WHERE id = ?
 `);
@@ -117,6 +123,27 @@ export function getSession(sessionId: string): Profile | null {
     id: profile.id,
     username: profile.username,
     display_name: profile.display_name,
+    avatar_url: profile.avatar_url ?? null,
+    bio: profile.bio ?? null,
+    is_public: Boolean(profile.is_public),
+    created_at: profile.created_at,
+  };
+}
+
+/**
+ * Get profile by ID directly.
+ */
+export function getProfileById(profileId: string): Profile | null {
+  const profile = stmtGetProfile.get(profileId);
+  if (!profile) return null;
+
+  return {
+    id: profile.id,
+    username: profile.username,
+    display_name: profile.display_name,
+    avatar_url: profile.avatar_url ?? null,
+    bio: profile.bio ?? null,
+    is_public: Boolean(profile.is_public),
     created_at: profile.created_at,
   };
 }

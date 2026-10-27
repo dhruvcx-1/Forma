@@ -150,6 +150,20 @@ const migrations: Record<number, Migration> = {
       insertDef.run(defId, def.name, def.slug, def.unit, def.display_order);
     }
   },
+  2: (db) => {
+    const cols = db.pragma('table_info(profiles)') as Array<{ name: string }>;
+    const colNames = new Set(cols.map((c) => c.name));
+
+    if (!colNames.has('avatar_url')) {
+      db.exec('ALTER TABLE profiles ADD COLUMN avatar_url TEXT;');
+    }
+    if (!colNames.has('bio')) {
+      db.exec('ALTER TABLE profiles ADD COLUMN bio TEXT;');
+    }
+    if (!colNames.has('is_public')) {
+      db.exec('ALTER TABLE profiles ADD COLUMN is_public INTEGER NOT NULL DEFAULT 0;');
+    }
+  },
 };
 
 // ---------------------------------------------------------------------------

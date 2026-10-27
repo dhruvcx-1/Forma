@@ -5,6 +5,11 @@ export interface User {
   username: string;
   displayName?: string | null;
   display_name?: string | null;
+  avatarUrl?: string | null;
+  avatar_url?: string | null;
+  bio?: string | null;
+  isPublic?: boolean;
+  is_public?: boolean;
   units?: 'metric' | 'imperial';
   unit_system?: 'metric' | 'imperial';
   createdAt?: string;
@@ -176,4 +181,29 @@ export interface ImportPreview {
   measurementDefinitions: number;
   measurementEntries: number;
   goals: number;
+}
+
+export interface PublicProfileData {
+  profile: {
+    username: string;
+    display_name: string | null;
+    avatar_url: string | null;
+    bio: string | null;
+    created_at: string;
+  };
+  stats: {
+    start_weight: number | null;
+    current_weight: number | null;
+    total_change: number | null;
+    goal_weight: number | null;
+    goal_target_date: string | null;
+    total_entries: number;
+    first_date: string | null;
+    latest_date: string | null;
+    unit_system: 'metric' | 'imperial';
+  };
+  history: Array<{
+    date: string;
+    weight: number;
+  }>;
 }

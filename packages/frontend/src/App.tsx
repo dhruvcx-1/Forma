@@ -18,6 +18,7 @@ const Settings = lazy(() => import('@/pages/Settings'));
 const DataIO = lazy(() => import('@/pages/DataIO'));
 const Login = lazy(() => import('@/pages/Login'));
 const Setup = lazy(() => import('@/pages/Setup'));
+const PublicProfile = lazy(() => import('@/pages/PublicProfile'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -46,6 +47,11 @@ function AuthGuard({ children }: { children: React.ReactElement }) {
     if (location.pathname !== '/setup') {
       return <Navigate to="/setup" replace />;
     }
+    return children;
+  }
+
+  // Public profile routes (e.g. /@username or /u/username) do not require authentication
+  if (location.pathname.startsWith('/@') || location.pathname.startsWith('/u/')) {
     return children;
   }
 
@@ -85,6 +91,8 @@ export default function App() {
                 {/* Public / Setup Routes */}
                 <Route path="/setup" element={<Setup />} />
                 <Route path="/login" element={<Login />} />
+                <Route path="/@:username" element={<PublicProfile />} />
+                <Route path="/u/:username" element={<PublicProfile />} />
 
                 {/* Authenticated Application Shell */}
                 <Route
