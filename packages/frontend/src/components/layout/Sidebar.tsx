@@ -9,6 +9,7 @@ import {
   Database,
   LogOut,
   User2,
+  X,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -28,9 +29,10 @@ const NAV_ITEMS = [
 
 interface SidebarProps {
   collapsed?: boolean;
+  onClose?: () => void;
 }
 
-export function Sidebar({ collapsed = false }: SidebarProps) {
+export function Sidebar({ collapsed = false, onClose }: SidebarProps) {
   const { data: auth } = useAuth();
   const logout = useLogout();
   const navigate = useNavigate();
@@ -66,6 +68,18 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
             </motion.span>
           )}
         </AnimatePresence>
+
+        {onClose && !collapsed && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            className="ml-auto text-muted-foreground hover:text-foreground h-8 w-8"
+            title="Close menu"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        )}
       </div>
 
       {/* Navigation */}
@@ -75,6 +89,7 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
             key={item.to}
             to={item.to}
             end={item.exact}
+            onClick={onClose}
             className={({ isActive }) =>
               cn(
                 'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group',
@@ -112,8 +127,18 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
           <ThemeToggle compact />
         </div>
         {auth?.user && (
-          <div className={cn('flex items-center gap-2 px-2 py-2 rounded-xl hover:bg-secondary group', collapsed && 'justify-center')}>
-            <div className="w-7 h-7 rounded-full gradient-violet flex items-center justify-center shrink-0">
+          <div
+            onClick={() => {
+              navigate('/settings');
+              onClose?.();
+            }}
+            className={cn(
+              'flex items-center gap-2 px-2 py-2 rounded-xl hover:bg-secondary group cursor-pointer transition-colors',
+              collapsed && 'justify-center'
+            )}
+            title="Account settings"
+          >
+            <div className="w-7 h-7 rounded-full gradient-violet flex items-center justify-center shrink-0 shadow-sm">
               <User2 className="h-3.5 w-3.5 text-white" />
             </div>
             <AnimatePresence>
@@ -135,8 +160,12 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
               <Button
                 variant="ghost"
                 size="icon-sm"
-                onClick={handleLogout}
-                className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleLogout();
+                  onClose?.();
+                }}
+                className="opacity-80 hover:opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity shrink-0"
                 title="Sign out"
               >
                 <LogOut className="h-3.5 w-3.5" />
