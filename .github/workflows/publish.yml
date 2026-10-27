@@ -5,8 +5,13 @@ on:
     branches:
       - main
       - master
+      - "feature/*"
+      - feature/public-profiles-and-avatars
     tags:
       - "v*.*.*"
+  schedule:
+    # Nightly build every day at 02:00 UTC
+    - cron: "0 2 * * *"
   workflow_dispatch:
 
 permissions:
@@ -41,13 +46,17 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            # Tag with commit SHA on pushes to main/master
+            # Commit SHA tag
             type=sha,prefix=sha-,format=short
-            # Tag with semver on version tags
+            # Version semver tags
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            # Always tag latest on default branch
+            # Production latest tag on default branch
             type=raw,value=latest,enable={{is_default_branch}}
+            # Nightly tag for feature branches and scheduled nightly builds
+            type=raw,value=nightly,enable=${{ startsWith(github.ref, 'refs/heads/feature/') || github.event_name == 'schedule' }}
+            # Branch name tag (e.g. :feature-public-profiles-and-avatars)
+            type=ref,event=branch
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
@@ -68,4 +77,5 @@ jobs:
           echo "Image digest: ${{ steps.meta.outputs.digest }}"
           echo ""
           echo "Pull with:"
+          echo "  docker pull ghcr.io/${{ env.IMAGE_NAME }}:nightly"
           echo "  docker pull ghcr.io/${{ env.IMAGE_NAME }}:latest"
