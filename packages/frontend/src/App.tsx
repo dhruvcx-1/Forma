@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AppShell } from '@/components/layout/AppShell';
 import { LoadingState } from '@/components/shared/LoadingState';
+import { ErrorBoundary } from '@/components/shared/ErrorBoundary';
 import { useSetupStatus, useAuth } from '@/hooks/useAuth';
 import { ThemeProvider } from '@/hooks/useTheme';
 
@@ -86,7 +87,14 @@ export default function App() {
                 <Route path="/login" element={<Login />} />
 
                 {/* Authenticated Application Shell */}
-                <Route path="/" element={<AppShell />}>
+                <Route
+                  path="/"
+                  element={
+                    <ErrorBoundary>
+                      <AppShell />
+                    </ErrorBoundary>
+                  }
+                >
                   <Route index element={<Dashboard />} />
                   <Route path="log" element={<LogWeight />} />
                   <Route path="measurements" element={<Measurements />} />

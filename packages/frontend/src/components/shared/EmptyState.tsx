@@ -1,8 +1,9 @@
+import React, { isValidElement } from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
 interface EmptyStateProps {
-  icon?: React.ReactNode | React.ComponentType<{ className?: string }>;
+  icon?: React.ReactNode | React.ElementType;
   title: string;
   description?: string;
   action?: React.ReactNode;
@@ -10,7 +11,13 @@ interface EmptyStateProps {
 }
 
 export function EmptyState({ icon: Icon, title, description, action, className }: EmptyStateProps) {
-  const renderedIcon = typeof Icon === 'function' ? <Icon className="h-6 w-6" /> : Icon;
+  let renderedIcon: React.ReactNode = null;
+  if (isValidElement(Icon)) {
+    renderedIcon = Icon;
+  } else if (Icon) {
+    const Component = Icon as React.ElementType;
+    renderedIcon = <Component className="h-6 w-6" />;
+  }
 
   return (
     <motion.div
