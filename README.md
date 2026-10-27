@@ -62,7 +62,7 @@ All configuration is via environment variables in `.env`:
 | `PHOTOS_PATH` | `/app/data/photos` | Photo storage directory |
 | `NODE_ENV` | `production` | Environment mode |
 | `CORS_ORIGIN` | `http://localhost:8080` | Allowed CORS origin |
-| `GHCR_IMAGE` | `ghcr.io/dhruvcx-1/forma-body-tracker:latest` | Image used by production Compose |
+| `GHCR_IMAGE` | `ghcr.io/dhruvcx-1/forma:latest` | Image used by production Compose |
 
 ---
 
@@ -107,7 +107,7 @@ docker compose logs --tail=50
 
 ```bash
 # Use a specific version tag
-GHCR_IMAGE=ghcr.io/dhruvcx-1/forma-body-tracker:v1.0.0 docker compose up -d
+GHCR_IMAGE=ghcr.io/dhruvcx-1/forma:v1.0.0 docker compose up -d
 ```
 
 ---
@@ -197,7 +197,7 @@ labels:
 
 ## GHCR Image
 
-Published image: `ghcr.io/dhruvcx-1/forma-body-tracker`
+Published image: `ghcr.io/dhruvcx-1/forma`
 
 ### Authenticate to pull (if package is private)
 

@@ -2,7 +2,7 @@ version: "3.9"
 
 services:
   forma:
-    image: ${GHCR_IMAGE:-ghcr.io/dhruvcx-1/forma-body-tracker:latest}
+    image: ${GHCR_IMAGE:-ghcr.io/dhruvcx-1/forma:latest}
     container_name: forma
     restart: unless-stopped
     ports:

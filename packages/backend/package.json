@@ -1,5 +1,5 @@
 {
-  "name": "@lively-lavoisier/backend",
+  "name": "@forma/backend",
   "version": "1.0.0",
   "description": "Body Progress Tracker - Backend API",
   "type": "module",

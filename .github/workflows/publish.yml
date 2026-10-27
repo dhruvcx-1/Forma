@@ -15,7 +15,7 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/forma-body-tracker
+  IMAGE_NAME: ${{ github.repository_owner }}/forma
 
 jobs:
   build-and-push:
