@@ -49,9 +49,11 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
     >
       {/* Logo */}
       <div className={cn('flex items-center gap-3 px-4 py-5 border-b border-border', collapsed && 'justify-center px-2')}>
-        <div className="w-8 h-8 rounded-xl gradient-violet flex items-center justify-center shrink-0">
-          <span className="text-white font-bold text-sm">F</span>
-        </div>
+        <img
+          src="/app.png"
+          alt="Forma logo"
+          className="w-8 h-8 rounded-xl object-contain shadow-md shrink-0"
+        />
         <AnimatePresence>
           {!collapsed && (
             <motion.span

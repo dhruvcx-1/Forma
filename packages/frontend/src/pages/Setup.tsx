@@ -70,9 +70,11 @@ export default function Setup() {
         className="w-full max-w-md relative z-10"
       >
         <div className="text-center mb-8">
-          <div className="inline-flex w-14 h-14 rounded-2xl gradient-violet items-center justify-center mb-4 shadow-lg shadow-primary/25">
-            <span className="text-white text-2xl font-black tracking-tight">F</span>
-          </div>
+          <img
+            src="/app.png"
+            alt="Forma logo"
+            className="inline-block w-16 h-16 rounded-2xl mb-4 shadow-xl shadow-primary/25 object-contain"
+          />
           <h1 className="text-3xl font-bold tracking-tight text-gradient-violet">Welcome to Forma</h1>
           <p className="text-muted-foreground text-sm mt-1">
             Your private, self-hosted body progress tracker

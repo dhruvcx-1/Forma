@@ -1,8 +1,8 @@
-# ⚡ Forma — Premium Body Progress Tracker
-
 <div align="center">
 
-![Forma Banner](screenshots/dashboard.png)
+<img src="app.png" alt="Forma Logo" width="84" height="84" style="border-radius: 22px; box-shadow: 0 8px 30px rgba(124, 58, 237, 0.4);">
+
+# Forma — Premium Body Progress Tracker
 
 <p align="center">
   <strong>A premium, self-hosted body measurement and weight tracking web application.</strong><br>
