@@ -15,6 +15,7 @@ services:
     environment:
       NODE_ENV: development
       PORT: 3001
+      EXTERNAL_PORT: ${EXTERNAL_PORT:-8080}
       COOKIE_SECRET: ${COOKIE_SECRET:-dev-secret-not-for-production-use}
       DATABASE_PATH: /app/data/body-tracker.db
       PHOTOS_PATH: /app/data/photos

@@ -127,11 +127,12 @@ const possibleFrontendDirs = [
   path.resolve('./dist/frontend'),
   path.resolve('./public'),
 ];
-const frontendDist = possibleFrontendDirs.find(
+export const frontendDist = possibleFrontendDirs.find(
   (d) => fs.existsSync(d) && fs.existsSync(path.join(d, 'index.html')),
 );
 
 if (frontendDist) {
+  fastify.log.info({ path: frontendDist }, 'Mounted frontend SPA static assets');
   await fastify.register(fastifyStatic, {
     root: frontendDist,
     prefix: '/',
