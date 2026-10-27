@@ -1,0 +1,27 @@
+version: "3.9"
+
+# Development Compose — builds from local source
+# Usage: docker compose -f docker-compose.dev.yml up --build
+
+services:
+  forma-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: forma-dev
+    restart: no
+    ports:
+      - "${EXTERNAL_PORT:-8080}:3001"
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      COOKIE_SECRET: ${COOKIE_SECRET:-dev-secret-not-for-production-use}
+      DATABASE_PATH: /app/data/body-tracker.db
+      PHOTOS_PATH: /app/data/photos
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080}
+    volumes:
+      - forma_dev_data:/app/data
+
+volumes:
+  forma_dev_data:
+    driver: local

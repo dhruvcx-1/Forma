@@ -1,0 +1,21 @@
+{
+  "name": "forma-body-tracker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Premium self-hosted body progress tracker",
+  "workspaces": [
+    "packages/backend",
+    "packages/frontend"
+  ],
+  "scripts": {
+    "dev": "concurrently -n backend,frontend -c blue,magenta \"npm run dev --workspace=packages/backend\" \"npm run dev --workspace=packages/frontend\"",
+    "build": "npm run build --workspace=packages/backend && npm run build --workspace=packages/frontend",
+    "test": "npm run test --workspace=packages/backend && npm run test --workspace=packages/frontend",
+    "test:e2e": "npm run test:e2e --workspace=packages/frontend"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "concurrently": "^8.2.2",
+    "vitest": "^5.0.5"
+  }
+}

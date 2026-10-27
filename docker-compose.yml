@@ -1,0 +1,28 @@
+version: "3.9"
+
+services:
+  forma:
+    image: ${GHCR_IMAGE:-ghcr.io/dhruvcx-1/forma-body-tracker:latest}
+    container_name: forma
+    restart: unless-stopped
+    ports:
+      - "${EXTERNAL_PORT:-8080}:3001"
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      COOKIE_SECRET: ${COOKIE_SECRET:?COOKIE_SECRET must be set in .env}
+      DATABASE_PATH: /app/data/body-tracker.db
+      PHOTOS_PATH: /app/data/photos
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080}
+    volumes:
+      - forma_data:/app/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3001/api/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 15s
+      retries: 3
+
+volumes:
+  forma_data:
+    driver: local
