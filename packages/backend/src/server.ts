@@ -54,9 +54,29 @@ export const fastify = Fastify({
 // Plugins
 // ---------------------------------------------------------------------------
 
-// CORS — must be registered before routes
+// CORS — allow configured origin, same-origin, and local LAN devices (phones/tablets)
 await fastify.register(fastifyCors, {
-  origin: CORS_ORIGIN,
+  origin: (origin, cb) => {
+    if (!origin) return cb(null, true);
+    if (CORS_ORIGIN === '*' || origin === CORS_ORIGIN) return cb(null, true);
+    try {
+      const parsed = new URL(origin);
+      const host = parsed.hostname;
+      if (
+        host === 'localhost' ||
+        host === '127.0.0.1' ||
+        host.startsWith('192.168.') ||
+        host.startsWith('10.') ||
+        /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(host) ||
+        host.endsWith('.local')
+      ) {
+        return cb(null, true);
+      }
+    } catch {
+      // Ignore URL parse error
+    }
+    return cb(new Error('Not allowed by CORS'), false);
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
 });
@@ -171,7 +191,27 @@ fastify.addHook('preHandler', async (request, reply) => {
       const allowed = CORS_ORIGIN;
       const source = origin ?? (referer ? new URL(referer).origin : null);
       const hostOrigin = request.headers.host ? `${request.protocol}://${request.headers.host}` : null;
-      if (source && source !== allowed && source !== hostOrigin) {
+      
+      let isAllowed = source === allowed || source === hostOrigin;
+      if (!isAllowed && source) {
+        try {
+          const sourceHost = new URL(source).hostname;
+          if (
+            sourceHost === 'localhost' ||
+            sourceHost === '127.0.0.1' ||
+            sourceHost.startsWith('192.168.') ||
+            sourceHost.startsWith('10.') ||
+            /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(sourceHost) ||
+            sourceHost.endsWith('.local')
+          ) {
+            isAllowed = true;
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      if (source && !isAllowed) {
         return reply.code(403).send({ error: 'Forbidden: invalid origin' });
       }
     }

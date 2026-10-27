@@ -11,14 +11,14 @@ services:
       NODE_ENV: production
       PORT: 3001
       EXTERNAL_PORT: ${EXTERNAL_PORT:-8080}
-      COOKIE_SECRET: ${COOKIE_SECRET:?COOKIE_SECRET must be set in .env}
+      COOKIE_SECRET: b557d12345840e0323cff44866395a7121f10d29b8798b95472f9b3cc44b3d6d
       DATABASE_PATH: /app/data/body-tracker.db
       PHOTOS_PATH: /app/data/photos
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080}
     volumes:
       - forma_data:/app/data
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3001/api/health"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3001/api/health"]
       interval: 30s
       timeout: 10s
       start_period: 15s
