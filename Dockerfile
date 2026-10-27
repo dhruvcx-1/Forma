@@ -3,7 +3,7 @@
 # ============================================================
 # Stage 1: Build frontend
 # ============================================================
-FROM node:20-alpine AS frontend-builder
+FROM node:22-alpine AS frontend-builder
 
 WORKDIR /build
 
@@ -25,7 +25,7 @@ RUN npm run build
 # ============================================================
 # Stage 2: Build backend
 # ============================================================
-FROM node:20-alpine AS backend-builder
+FROM node:22-alpine AS backend-builder
 
 WORKDIR /build
 
@@ -43,7 +43,7 @@ RUN npm run build
 # ============================================================
 # Stage 3: Production runtime
 # ============================================================
-FROM node:20-alpine AS runtime
+FROM node:22-alpine AS runtime
 
 # Security: non-root user
 RUN addgroup -S forma && adduser -S forma -G forma
