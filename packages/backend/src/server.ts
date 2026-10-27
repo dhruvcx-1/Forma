@@ -33,8 +33,6 @@ if (isProduction && COOKIE_SECRET.length < 32) {
   process.exit(1);
 }
 
-const CORS_ORIGIN = process.env.CORS_ORIGIN ?? 'http://localhost:5173';
-
 // ---------------------------------------------------------------------------
 // Fastify instance
 // ---------------------------------------------------------------------------
@@ -54,29 +52,9 @@ export const fastify = Fastify({
 // Plugins
 // ---------------------------------------------------------------------------
 
-// CORS — allow configured origin, same-origin, and local LAN devices (phones/tablets)
+// CORS — allow all origins (reflects request origin to support credentials across any domain/IP/port)
 await fastify.register(fastifyCors, {
-  origin: (origin, cb) => {
-    if (!origin) return cb(null, true);
-    if (CORS_ORIGIN === '*' || origin === CORS_ORIGIN) return cb(null, true);
-    try {
-      const parsed = new URL(origin);
-      const host = parsed.hostname;
-      if (
-        host === 'localhost' ||
-        host === '127.0.0.1' ||
-        host.startsWith('192.168.') ||
-        host.startsWith('10.') ||
-        /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(host) ||
-        host.endsWith('.local')
-      ) {
-        return cb(null, true);
-      }
-    } catch {
-      // Ignore URL parse error
-    }
-    return cb(new Error('Not allowed by CORS'), false);
-  },
+  origin: true,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
 });
@@ -173,49 +151,5 @@ if (frontendDist) {
     return reply.code(404).send({ error: 'Not found' });
   });
 }
-
-// ---------------------------------------------------------------------------
-// CSRF origin check for state-changing operations
-// SameSite=Strict cookie is the primary protection; this is belt-and-suspenders.
-// ---------------------------------------------------------------------------
-
-fastify.addHook('preHandler', async (request, reply) => {
-  const method = request.method.toUpperCase();
-  if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
-    const origin = request.headers['origin'];
-    const referer = request.headers['referer'];
-
-    // Skip CSRF check for setup and login endpoints (no cookie yet)
-    const skipPaths = ['/api/auth/setup', '/api/auth/login'];
-    if (!skipPaths.includes(request.url.split('?')[0]!)) {
-      const allowed = CORS_ORIGIN;
-      const source = origin ?? (referer ? new URL(referer).origin : null);
-      const hostOrigin = request.headers.host ? `${request.protocol}://${request.headers.host}` : null;
-      
-      let isAllowed = source === allowed || source === hostOrigin;
-      if (!isAllowed && source) {
-        try {
-          const sourceHost = new URL(source).hostname;
-          if (
-            sourceHost === 'localhost' ||
-            sourceHost === '127.0.0.1' ||
-            sourceHost.startsWith('192.168.') ||
-            sourceHost.startsWith('10.') ||
-            /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(sourceHost) ||
-            sourceHost.endsWith('.local')
-          ) {
-            isAllowed = true;
-          }
-        } catch {
-          // ignore
-        }
-      }
-
-      if (source && !isAllowed) {
-        return reply.code(403).send({ error: 'Forbidden: invalid origin' });
-      }
-    }
-  }
-});
 
 export default fastify;

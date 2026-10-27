@@ -14,7 +14,6 @@ services:
       COOKIE_SECRET: b557d12345840e0323cff44866395a7121f10d29b8798b95472f9b3cc44b3d6d
       DATABASE_PATH: /app/data/body-tracker.db
       PHOTOS_PATH: /app/data/photos
-      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080}
     volumes:
       - forma_data:/app/data
     healthcheck:

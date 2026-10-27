@@ -19,7 +19,6 @@ services:
       COOKIE_SECRET: ${COOKIE_SECRET:-dev-secret-not-for-production-use}
       DATABASE_PATH: /app/data/body-tracker.db
       PHOTOS_PATH: /app/data/photos
-      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080}
     volumes:
       - forma_dev_data:/app/data
 
