@@ -1,167 +1,205 @@
-# Forma — Body Progress Tracker
+# ⚡ Forma — Premium Body Progress Tracker
 
-A premium, self-hosted body measurement and weight tracking application. Privacy-first, no cloud accounts required, beautiful glassmorphism UI.
+<div align="center">
 
-![Forma Dashboard](docs/screenshot-dashboard.png)
+![Forma Banner](screenshots/dashboard.png)
 
-## Features
+<p align="center">
+  <strong>A premium, self-hosted body measurement and weight tracking web application.</strong><br>
+  Privacy-first, zero telemetry, no external accounts, refined glassmorphism design.
+</p>
 
-- **Weight tracking** — Log weight daily, view trends with moving averages
-- **Body measurements** — Track waist, hips, chest, arms, legs, and custom measurements
-- **Body composition** — US Navy method body fat estimation
-- **Progress photos** — Private, local photo storage with before/after comparison
-- **Goal tracking** — Set target weight with projected trajectory visualization
-- **Data export** — Full JSON and CSV export, import, and backup
-- **PWA** — Installable on mobile and desktop
-- **Dark/Light themes** — Polished glassmorphism design in both modes
-- **Self-hosted** — Your data stays on your server
+[![CI/CD Build & Publish](https://github.com/dhruvcx-1/Forma/actions/workflows/publish.yml/badge.svg)](https://github.com/dhruvcx-1/Forma/actions/workflows/publish.yml)
+![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
+![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)
+![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
+![Fastify](https://img.shields.io/badge/Fastify-v4-000000?logo=fastify&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
 
-## Quick Start
+</div>
+
+---
+
+## ✨ Features
+
+- ⚖️ **Weight Tracking & Trends** — Rapid daily weigh-in with ±0.1 step controls, 7-day moving averages, and duplicate entry safeguards.
+- 📏 **Body Circumferences** — Track 13 anatomical sites (waist, hips, chest, arms, thighs, calves) with custom site definitions and per-measurement progression charts.
+- 🧬 **Body Composition** — Deterministic US Navy Hodgdon-Beckett circumference formula & WHO BMI classification with visible formula transparent assumptions.
+- 🎯 **Target Goals & Pacing** — SVG circular milestone visualizer, required weekly pace calculations, and estimated completion trajectories.
+- 📸 **Private Progress Photos** — Local filesystem storage (JPEG/PNG/WebP), timeline gallery by perspective (front/side/back), and side-by-side before/after comparison.
+- 💎 **Refined Glassmorphism** — Translucent blurred surfaces, high-contrast dark and light modes, smooth transitions, and tabular numeral typography.
+- 🔒 **Privacy-First & Self-Hosted** — 100% self-contained SQLite WAL database, Argon2id encryption, secure session cookies, zero external telemetry, zero third-party cloud calls.
+- 💾 **Data Portability** — Complete JSON database backups and CSV spreadsheets for weight and measurement records.
+- 📱 **Progressive Web App (PWA)** — Installable on iOS, Android, and Desktop with responsive layouts.
+
+---
+
+## 📸 Visual Showcase
+
+### 📊 Comprehensive Dashboard
+> Interactive time-series weight trends with gradient fills, sparklines, 7-day moving averages, and goal tracking.
+
+<div align="center">
+  <img src="screenshots/dashboard.png" alt="Forma Dashboard" width="900" style="border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.3);">
+</div>
+
+---
+
+### ⚖️ Streamlined Weigh-in Logger
+> Rapid single-tap weight recording, ±0.1 steppers, previous entry comparison delta, and chronological history with notes.
+
+<div align="center">
+  <img src="screenshots/quick-log.png" alt="Log Weight" width="900" style="border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.3);">
+</div>
+
+---
+
+### 📏 Circumference Measurements
+> Multi-site batch recording sessions, automatic unit conversion (metric cm / imperial in), and detailed individual trend histories.
+
+<div align="center">
+  <img src="screenshots/body-measurement.png" alt="Body Measurements" width="900" style="border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.3);">
+</div>
+
+---
+
+### 📷 Private Progress Photos & Comparison
+> Auth-gated photo uploads, multi-angle views (front, side, back), and side-by-side progression comparison.
+
+<div align="center">
+  <img src="screenshots/progress-photos.png" alt="Progress Photos" width="900" style="border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.3);">
+</div>
+
+---
+
+## 🚀 Quick Start with Docker
+
+Forma is packaged as a lightweight, production-ready container image published to GitHub Container Registry (**GHCR**).
 
 ### Prerequisites
 - Docker and Docker Compose
-- 512 MB RAM minimum
+- Minimum 512 MB RAM
 
-### Deploy in 2 commands
+### Deploy in 2 Steps
 
 ```bash
-# 1. Copy and configure environment
+# 1. Download environment template
+curl -sO https://raw.githubusercontent.com/dhruvcx-1/Forma/master/.env.example
 cp .env.example .env
-# Edit .env — at minimum set COOKIE_SECRET to a 32+ character random string
 
-# 2. Start the application
+# Edit .env and set COOKIE_SECRET to a random 32+ character string:
+# Linux/macOS:  openssl rand -hex 32
+# PowerShell:   [System.Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
+
+# 2. Start the container
 docker compose up -d
 ```
 
-The app will be available at `http://localhost:8080`.
-
-On first visit, you'll be prompted to create your account.
-
-### Generate a secure COOKIE_SECRET
-
-```bash
-# Linux/macOS
-openssl rand -hex 32
-
-# PowerShell
-[System.Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
-```
+Open your browser at **`http://localhost:8080`**. On first launch, you will be guided through setting up your private master profile.
 
 ---
 
-## Configuration
+## ⚙️ Configuration
 
-All configuration is via environment variables in `.env`:
+All runtime options are managed via environment variables in `.env`:
 
-| Variable | Default | Description |
+| Variable | Default | Purpose |
 |---|---|---|
-| `COOKIE_SECRET` | *(required in production)* | Secret for cookie signing. Min 32 chars. |
-| `PORT` | `3001` | Backend API port (internal) |
-| `EXTERNAL_PORT` | `8080` | Host port mapped by Docker |
-| `DATABASE_PATH` | `/app/data/body-tracker.db` | SQLite database path |
-| `PHOTOS_PATH` | `/app/data/photos` | Photo storage directory |
-| `NODE_ENV` | `production` | Environment mode |
-| `CORS_ORIGIN` | `http://localhost:8080` | Allowed CORS origin |
-| `GHCR_IMAGE` | `ghcr.io/dhruvcx-1/forma:latest` | Image used by production Compose |
+| `COOKIE_SECRET` | *(required)* | 32+ character random string for signing secure session cookies |
+| `EXTERNAL_PORT` | `8080` | Host port exposed to your local network |
+| `PORT` | `3001` | Internal Node.js Fastify listener port |
+| `DATABASE_PATH` | `/app/data/body-tracker.db` | SQLite database file location inside container |
+| `PHOTOS_PATH` | `/app/data/photos` | Storage directory for progress photos |
+| `NODE_ENV` | `production` | Set to `production` or `development` |
+| `CORS_ORIGIN` | `http://localhost:8080` | Allowed origin for CSRF and API requests |
+| `GHCR_IMAGE` | `ghcr.io/dhruvcx-1/forma:latest` | Container image reference |
 
 ---
 
-## Docker Compose Files
+## 📦 Container Registry (GHCR)
 
-| File | Purpose |
-|---|---|
-| `docker-compose.yml` | **Production** — pulls from GHCR |
-| `docker-compose.dev.yml` | **Development** — builds from local source |
-
-### Development mode
+The production multi-arch image (`linux/amd64` and `linux/arm64`) is automatically built on every commit and hosted at:
 
 ```bash
-docker compose -f docker-compose.dev.yml up --build
+ghcr.io/dhruvcx-1/forma:latest
 ```
 
-### Production mode (pull from GHCR)
-
+### Pulling manually:
 ```bash
-# Set GHCR_IMAGE in .env or use default
-docker compose pull
-docker compose up -d
+docker pull ghcr.io/dhruvcx-1/forma:latest
 ```
 
----
-
-## Upgrades
-
+### Upgrading your container:
 ```bash
-# Pull latest image
 docker compose pull
-
-# Recreate containers (data is preserved in volumes)
 docker compose up -d --force-recreate
-
-# Verify health
-docker compose ps
-docker compose logs --tail=50
-```
-
-### Rollback
-
-```bash
-# Use a specific version tag
-GHCR_IMAGE=ghcr.io/dhruvcx-1/forma:v1.0.0 docker compose up -d
 ```
 
 ---
 
-## Backup and Restore
+## 🔒 Security & Privacy Architecture
 
-### Backup
+- **No Remote Telemetry**: No Google Analytics, Segment, Sentry, or third-party trackers.
+- **Argon2id Hashing**: Password hashing uses the industry gold-standard memory-hard Argon2id algorithm.
+- **Session Tokens**: 30-day cryptographically random session tokens stored in SQLite and transmitted over `HttpOnly`, `SameSite=Strict` cookies.
+- **Auth-Gated Assets**: Uploaded progress photos are not exposed through public static directories; each request is authenticated before binary image streaming.
+- **Strict File Upload Constraints**: Uploads are restricted to JPEG, PNG, and WebP formats up to 10MB. Filenames are assigned randomized `nanoid` identifiers to prevent path traversal attacks.
+
+---
+
+## 💾 Backup and Restoration
+
+### 1. Web UI Backup
+Visit the **Data** page in the application to download:
+- Full JSON backup archive
+- Weight History CSV
+- Circumference Measurements CSV
+
+### 2. Low-Level Docker Volume Backup
+To snapshot your database and progress photos simultaneously:
 
 ```bash
-# Stop the app (recommended for consistent backup)
+# Stop container for consistency
 docker compose stop
 
-# Backup database and photos
+# Archive volume to a tarball
 docker run --rm \
   -v forma_data:/source \
   -v $(pwd)/backups:/backup \
-  alpine tar czf /backup/forma-backup-$(date +%Y%m%d-%H%M%S).tar.gz -C /source .
+  alpine tar czf /backup/forma-backup-$(date +%Y%m%d).tar.gz -C /source .
 
-# Restart
+# Restart container
 docker compose start
 ```
 
-Or use the built-in JSON export from the **Data** page in the app.
-
-### Restore
-
+### Restoration:
 ```bash
 docker compose stop
 
 docker run --rm \
   -v forma_data:/target \
   -v $(pwd)/backups:/backup \
-  alpine sh -c "cd /target && tar xzf /backup/forma-backup-YYYYMMDD-HHMMSS.tar.gz"
+  alpine sh -c "cd /target && tar xzf /backup/forma-backup-YYYYMMDD.tar.gz"
 
 docker compose start
 ```
 
 ---
 
-## Reverse Proxy
+## 🌐 Reverse Proxy Configuration
 
-Forma expects to run behind a reverse proxy for HTTPS. Do **not** expose the backend port (3001) directly.
+When exposing Forma to the public internet, place it behind a reverse proxy that terminates TLS (HTTPS).
 
-### Nginx example
-
+### Nginx Example:
 ```nginx
 server {
-    listen 443 ssl;
-    server_name forma.example.com;
+    listen 443 ssl http2;
+    server_name forma.yourdomain.com;
 
-    ssl_certificate /etc/letsencrypt/live/forma.example.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/forma.example.com/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/forma.yourdomain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/forma.yourdomain.com/privkey.pem;
 
-    client_max_body_size 15M;  # For photo uploads
+    client_max_body_size 15M; # Support photo uploads
 
     location / {
         proxy_pass http://localhost:8080;
@@ -173,108 +211,57 @@ server {
 }
 ```
 
-### Caddy example
-
-```
-forma.example.com {
+### Caddy Example:
+```caddy
+forma.yourdomain.com {
     reverse_proxy localhost:8080
 }
 ```
 
-### Traefik example
-
-```yaml
-labels:
-  - "traefik.enable=true"
-  - "traefik.http.routers.forma.rule=Host(`forma.example.com`)"
-  - "traefik.http.routers.forma.entrypoints=websecure"
-  - "traefik.http.services.forma.loadbalancer.server.port=8080"
-```
-
-> **Note**: Set `CORS_ORIGIN` in `.env` to your public domain when using a reverse proxy.
+> **Note**: Update `CORS_ORIGIN=https://forma.yourdomain.com` in your `.env` when deploying behind a domain.
 
 ---
 
-## GHCR Image
-
-Published image: `ghcr.io/dhruvcx-1/forma`
-
-### Authenticate to pull (if package is private)
-
-```bash
-echo $GITHUB_TOKEN | docker login ghcr.io -u dhruvcx-1 --password-stdin
-```
-
-Or with the GitHub CLI:
-
-```bash
-gh auth token | docker login ghcr.io -u dhruvcx-1 --password-stdin
-```
-
----
-
-## Development Setup
+## 🛠️ Local Development
 
 ### Prerequisites
-- Node.js 20+
-- npm 9+
+- Node.js 22+
+- npm 10+
 
 ```bash
-# Install dependencies
+# 1. Clone the repository
+git clone https://github.com/dhruvcx-1/Forma.git
+cd Forma
+
+# 2. Install dependencies
 npm install
 
-# Start backend + frontend in parallel
+# 3. Start development servers concurrently (Fastify on 3001, Vite on 5173)
 npm run dev
-```
 
-- Frontend: http://localhost:5173
-- Backend API: http://localhost:3001
-
-### Run tests
-
-```bash
-# Unit tests
+# 4. Run automated test suite
 npm test
 
-# E2E tests (requires running app)
-npm run test:e2e
-```
-
-### Build for production
-
-```bash
+# 5. Build production bundle
 npm run build
 ```
 
 ---
 
-## Tech Stack
+## 🧰 Technology Stack
 
-| Layer | Technology |
+| Layer | Technologies |
 |---|---|
-| Frontend | React 18, TypeScript, Vite |
-| Styling | Tailwind CSS, shadcn/ui |
-| Charts | Recharts |
-| Animations | Framer Motion |
-| Backend | Node.js, Fastify, TypeScript |
-| Database | SQLite (better-sqlite3) |
-| Validation | Zod |
-| Auth | Argon2 password hashing, session cookies |
-| Deployment | Docker, Docker Compose |
-| CI/CD | GitHub Actions → GHCR |
+| **Frontend** | React 18, TypeScript, Vite, Tailwind CSS, shadcn/ui primitives |
+| **Data Viz** | Recharts, Custom SVG circular progress meters, Lucide Icons |
+| **Animation** | Framer Motion (Motion for React) |
+| **Backend** | Node.js 22, Fastify, TypeScript, Zod |
+| **Database** | SQLite via `better-sqlite3` with Write-Ahead Logging (WAL) |
+| **Testing** | Vitest |
+| **Deployment** | Multi-stage Docker, Docker Compose, GitHub Actions (GHCR) |
 
 ---
 
-## Privacy
+## 📄 License
 
-- No external APIs, analytics, or telemetry
-- No cloud account required
-- All data stored locally in SQLite and the filesystem
-- Photos served auth-gated (never in a public directory)
-- Passwords hashed with Argon2id
-
----
-
-## License
-
-MIT — see [LICENSE](LICENSE) for details.
+Licensed under the [MIT License](LICENSE). Built for self-hosters and privacy advocates.
