@@ -14,6 +14,7 @@ import {
   ShieldAlert,
   ArrowRight,
   Sparkles,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { ProgressPhoto } from '@/types/api';
@@ -30,6 +31,7 @@ import { EmptyState } from '@/components/shared/EmptyState';
 export default function Photos() {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   // Tabs: Gallery or Compare
   const [activeTab, setActiveTab] = useState<'gallery' | 'compare'>('gallery');
@@ -74,8 +76,8 @@ export default function Photos() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      setUploadError('Only JPEG, PNG, and WebP images are supported.');
+    if (file.type && !file.type.startsWith('image/')) {
+      setUploadError('Only image files (JPEG, PNG, WebP) are supported.');
       return;
     }
     if (file.size > 10 * 1024 * 1024) {
@@ -382,29 +384,70 @@ export default function Photos() {
               </div>
             )}
 
+            {/* Action Buttons: Camera vs Gallery */}
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => cameraInputRef.current?.click()}
+                className="h-10 text-xs gap-2 rounded-xl border-primary/30 hover:bg-primary/10 hover:text-primary transition-all active:scale-95"
+              >
+                <Camera className="h-4 w-4 text-primary" />
+                <span className="font-medium">Take Photo</span>
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => fileInputRef.current?.click()}
+                className="h-10 text-xs gap-2 rounded-xl border-border/80 hover:bg-secondary transition-all active:scale-95"
+              >
+                <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                <span className="font-medium">Browse Gallery</span>
+              </Button>
+            </div>
+
+            {/* Hidden file inputs:
+                1) fileInputRef (accept="image/*"): prompts native system choice (Camera / Photos / Files)
+                2) cameraInputRef (capture="environment"): directly launches camera viewfinder */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleFileChange}
+              className="hidden"
+            />
+            <input
+              ref={cameraInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handleFileChange}
+              className="hidden"
+            />
+
             {/* Drop / Pick Zone */}
             <div
               onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-border/80 hover:border-primary/60 rounded-2xl p-6 text-center cursor-pointer transition-colors space-y-2 flex flex-col items-center justify-center min-h-[160px] bg-secondary/30"
+              className="border-2 border-dashed border-border/80 hover:border-primary/60 rounded-2xl p-5 text-center cursor-pointer transition-colors space-y-2 flex flex-col items-center justify-center min-h-[140px] bg-secondary/30"
             >
               {previewUrl ? (
-                <div className="relative w-28 h-36 rounded-xl overflow-hidden shadow-md">
-                  <img src={previewUrl} alt="Preview" className="w-full h-full object-cover" />
+                <div className="space-y-2 flex flex-col items-center">
+                  <div className="relative w-28 h-36 rounded-xl overflow-hidden shadow-md border border-border/60">
+                    <img src={previewUrl} alt="Preview" className="w-full h-full object-cover" />
+                  </div>
+                  <p className="text-[11px] text-primary font-medium">Click to select a different photo</p>
                 </div>
               ) : (
                 <>
-                  <Upload className="h-8 w-8 text-muted-foreground" />
-                  <p className="text-xs font-semibold text-foreground">Click to select photo</p>
+                  <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center text-muted-foreground shadow-sm">
+                    <Upload className="h-5 w-5" />
+                  </div>
+                  <p className="text-xs font-semibold text-foreground">Or click / drag photo here</p>
                   <p className="text-[11px] text-muted-foreground">JPEG, PNG, or WebP up to 10MB</p>
                 </>
               )}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                onChange={handleFileChange}
-                className="hidden"
-              />
             </div>
 
             <div className="grid grid-cols-2 gap-3">

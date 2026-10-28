@@ -47,6 +47,7 @@ export default function Settings() {
   const { theme, setTheme } = useTheme();
   const { units } = useUnits();
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  const avatarCameraRef = useRef<HTMLInputElement>(null);
 
   const handleLogout = async () => {
     try {
@@ -326,9 +327,29 @@ export default function Settings() {
                     type="file"
                     ref={avatarInputRef}
                     onChange={handleAvatarFileChange}
-                    accept="image/png,image/jpeg,image/webp"
+                    accept="image/*"
                     className="hidden"
                   />
+                  <input
+                    type="file"
+                    ref={avatarCameraRef}
+                    onChange={handleAvatarFileChange}
+                    accept="image/*"
+                    capture="user"
+                    className="hidden"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => avatarCameraRef.current?.click()}
+                    disabled={uploadAvatarMutation.isPending}
+                    className="h-8 text-xs gap-1.5"
+                    title="Take picture with camera"
+                  >
+                    <Camera className="h-3.5 w-3.5 text-primary" />
+                    <span>Camera</span>
+                  </Button>
                   <Button
                     type="button"
                     variant="outline"
