@@ -79,7 +79,7 @@ export default function Login() {
                     id="username"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    placeholder="dhruv"
+                    placeholder="Username"
                     className="pl-9"
                     required
                     autoFocus
