@@ -16,14 +16,22 @@
 ![Fastify](https://img.shields.io/badge/Fastify-v4-000000?logo=fastify&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
 
+[**📸 View Complete Screenshot Gallery & Intel →**](SCREENSHOTS.md)
+
 </div>
 
 ---
 
 ## ✨ Features
 
-- ⚖️ **Weight Tracking & Trends** — Rapid daily weigh-in with ±0.1 step controls, 7-day moving averages, and duplicate entry safeguards.
-- 📏 **Body Circumferences** — Track 13 anatomical sites (waist, hips, chest, arms, thighs, calves) with custom site definitions and per-measurement progression charts.
+- 📏 **Interactive Anatomical Body Map & Measurements Studio** — Visual SVG human silhouette with pulse pins across 13 anatomical sites (neck, chest, biceps, waist, hips, thighs, calves). Features real-time delta tooltips, direct site inspector, and quick session batch logger.
+- ⏱️ **Second-Level Timestamp Precision** — Body measurements and weight logs support exact time-of-day timestamps (`YYYY-MM-DDTHH:mm:ss`) with a dedicated time picker and "Now" button, empowering multiple distinct daily sessions (e.g. morning fasted vs. evening post-workout).
+- 🩺 **Cardiometabolic Health Risk Indicators** — Instant clinical risk evaluation for **Waist-to-Height Ratio (WHtR)** (*"keep your waist under half your height"*) and **Waist-to-Hip Ratio (WHR)** with WHO risk gauges.
+- ⏱️ **Fasting Tracker & Biological Stage Engine** — Real-time countdown timer supporting intermittent (16:8, 18:6, 20:4, 24:0) and extended fasting (36h, 48h, 72h+). Dynamically highlights the **7 Biological Stages of Fasting** (Fed, Post-Absorptive, Fat Burn, Metabolic Switch & Ketosis, Autophagy, HGH Surge, and Stem Cell Reset) with live physiological notes.
+- 🥗 **Macro Planning & Nutrition Engine** — Evidence-based nutritional macro engine calculating BMR (Mifflin-St Jeor), maintenance TDEE, and daily macro gram allocations across 6 Diet Archetypes (High-Protein/Low-Carb, Keto, Balanced, Mediterranean, Carnivore, and Custom).
+- 🧬 **Clinical Over-80kg Ideal Weight Protocol** — If scale weight exceeds 80 kg, protein requirements automatically calculate from the user's **Max Ideal Weight** (BMI 24.9 ceiling) to optimize lean mass retention while avoiding excessive caloric load.
+- 🧙 **Modern Multi-Step Onboarding Wizard** — Guided setup experience for both registration and first-run profile creation, collecting credentials, full name, biological sex, height, weight, and initial targets with smooth transitions and validation.
+- ⚖️ **Weight Tracking & Trends** — Rapid daily weigh-in with ±0.1 step controls, 7-day moving averages, trend regression, and duplicate entry safeguards.
 - 🧬 **Body Composition** — Deterministic US Navy Hodgdon-Beckett circumference formula & WHO BMI classification with visible formula transparent assumptions.
 - 🎯 **Target Goals & Pacing** — SVG circular milestone visualizer, required weekly pace calculations, and estimated completion trajectories.
 - 📸 **Private Progress Photos** — Local filesystem storage (JPEG/PNG/WebP), timeline gallery by perspective (front/side/back), and side-by-side before/after comparison.
@@ -41,39 +49,45 @@
 
 ## 📸 Visual Showcase
 
-### 📊 Comprehensive Dashboard
-> Interactive time-series weight trends with gradient fills, sparklines, 7-day moving averages, and goal tracking.
+> 🌟 **Want to see every screen in high resolution? View the [Complete Screenshot Gallery (SCREENSHOTS.md)](SCREENSHOTS.md) for full intel on all 9 screens.**
+
+### 📊 1. Unified Dashboard & Clinical Vitals
+> Interactive time-series trends, WHO BMI brackets, US Navy body fat percentage, cardiometabolic risk ratios (WHtR & WHR), active fasting window, and daily nutrition targets.
 
 <div align="center">
-  <img src="screenshots/dashboard.png" alt="Forma Dashboard" width="900" style="border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.3);">
+  <img src="screenshots/01-dashboard-overview.png" alt="Forma Dashboard Overview" width="920" style="border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.3);">
 </div>
 
 ---
 
-### ⚖️ Streamlined Weigh-in Logger
-> Rapid single-tap weight recording, ±0.1 steppers, previous entry comparison delta, and chronological history with notes.
+### 📏 2. Body Measurements Studio & Anatomical Silhouette
+> Interactive human silhouette map with pulse pins, direct site inspector, baseline delta calculations, cardiometabolic health ratio cards, and quick batch logging with second-level timestamps.
 
 <div align="center">
-  <img src="screenshots/quick-log.png" alt="Log Weight" width="900" style="border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.3);">
+  <img src="screenshots/05-measurements-studio-silhouette.png" alt="Body Measurements Studio" width="920" style="border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.3);">
 </div>
 
 ---
 
-### 📏 Circumference Measurements
-> Multi-site batch recording sessions, automatic unit conversion (metric cm / imperial in), and detailed individual trend histories.
+### ⏱️ 3. Fasting Tracker & 7-Stage Biological Engine
+> Live fasting clock, remaining target countdown, and real-time biological transitions from early glycogen depletion into ketosis, peak autophagy, and stem cell regeneration.
 
 <div align="center">
-  <img src="screenshots/body-measurement.png" alt="Body Measurements" width="900" style="border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.3);">
+  <img src="screenshots/02-fasting-tracker.png" alt="Fasting Tracker & Biology" width="920" style="border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.3);">
 </div>
 
 ---
 
-### 📷 Private Progress Photos & Comparison
-> Auth-gated photo uploads, multi-angle views (front, side, back), and side-by-side progression comparison.
+### 🥗 4. Macro Planning & Nutrition Engine
+> Scientific TDEE and BMR calculation, 6 diet archetypes (High-Protein / Low-Carb by default), clinical Over-80kg Ideal Weight protocol, and single-tap daily intake tracking.
 
 <div align="center">
-  <img src="screenshots/progress-photos.png" alt="Progress Photos" width="900" style="border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.3);">
+  <img src="screenshots/03-macro-nutrition-engine.png" alt="Macro Planning & Nutrition Engine" width="920" style="border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.3);">
 </div>
+
+---
+
+👉 *See [SCREENSHOTS.md](SCREENSHOTS.md) for Weight Logging, Goals & Trajectory, Progress Photos, Admin Settings, and Data Portability.*
 
 ---
 
@@ -286,13 +300,16 @@ cd Forma
 # 2. Install dependencies
 npm install
 
-# 3. Start development servers concurrently (Fastify on 3001, Vite on 5173)
+# 3. (Optional) Seed realistic demo user data (demo / password123)
+npm run db:seed --workspace=packages/backend
+
+# 4. Start development servers concurrently (Fastify on 3001, Vite on 5173)
 npm run dev
 
-# 4. Run automated test suite
+# 5. Run automated test suite
 npm test
 
-# 5. Build production bundle
+# 6. Build production bundle
 npm run build
 ```
 
