@@ -39,7 +39,7 @@ export function AppShell() {
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
               onClick={() => setMobileMenuOpen(false)}
-              className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm md:hidden"
+              className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden"
             />
             {/* Sliding Drawer */}
             <motion.div
@@ -47,7 +47,7 @@ export function AppShell() {
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
               transition={{ type: 'spring', damping: 28, stiffness: 280 }}
-              className="fixed top-0 bottom-0 left-0 z-50 w-72 max-w-[85vw] md:hidden shadow-2xl overflow-hidden"
+              className="fixed top-0 bottom-0 left-0 z-50 w-72 max-w-[85vw] md:hidden shadow-2xl overflow-hidden bg-background-secondary border-r border-border"
             >
               <Sidebar onClose={() => setMobileMenuOpen(false)} />
             </motion.div>

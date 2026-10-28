@@ -100,17 +100,22 @@ export function Sidebar({ collapsed = false, onClose }: SidebarProps) {
             onClick={onClose}
             className={({ isActive }) =>
               cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group',
+                'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group select-none',
                 collapsed && 'justify-center px-2',
                 isActive
-                  ? 'bg-primary/15 text-primary'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+                  ? 'bg-primary/10 text-primary font-semibold shadow-sm'
+                  : 'text-foreground/75 hover:text-foreground hover:bg-secondary/80'
               )
             }
           >
             {({ isActive }) => (
               <>
-                <item.icon className={cn('h-4 w-4 shrink-0', isActive ? 'text-primary' : '')} />
+                <item.icon
+                  className={cn(
+                    'h-4 w-4 shrink-0 transition-colors',
+                    isActive ? 'text-primary' : 'text-foreground/60 group-hover:text-foreground'
+                  )}
+                />
                 <AnimatePresence>
                   {!collapsed && (
                     <motion.span
@@ -130,9 +135,9 @@ export function Sidebar({ collapsed = false, onClose }: SidebarProps) {
       </nav>
 
       {/* Bottom: theme + user */}
-      <div className={cn('border-t border-border py-3 px-2 space-y-1', collapsed && 'items-center flex flex-col')}>
+      <div className={cn('border-t border-border py-3 px-2 space-y-1.5', collapsed && 'items-center flex flex-col')}>
         <div className={cn('px-1', collapsed && 'flex justify-center')}>
-          <ThemeToggle compact />
+          <ThemeToggle compact={collapsed} />
         </div>
         {auth?.user && (
           <div

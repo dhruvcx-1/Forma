@@ -25,15 +25,16 @@ export function ThemeToggle({ compact = false }: { compact?: boolean }) {
   }
 
   return (
-    <div className="flex items-center gap-1 p-1 rounded-lg bg-secondary">
+    <div className="flex items-center gap-1 p-1 rounded-xl bg-secondary/80 border border-border/50">
       {(['light', 'dark', 'system'] as const).map((t) => (
         <button
           key={t}
+          type="button"
           onClick={() => setTheme(t)}
           className={cn(
-            'flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all',
+            'flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-medium transition-all select-none',
             theme === t
-              ? 'bg-background text-foreground shadow-sm'
+              ? 'bg-background text-foreground shadow-sm font-semibold'
               : 'text-muted-foreground hover:text-foreground'
           )}
         >

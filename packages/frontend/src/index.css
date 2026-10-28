@@ -18,7 +18,7 @@
     --secondary: 220 13% 90%;
     --secondary-foreground: 220 9% 30%;
     --muted: 220 13% 93%;
-    --muted-foreground: 220 9% 46%;
+    --muted-foreground: 220 10% 40%;
     --accent: 262 83% 58%;
     --accent-foreground: 0 0% 100%;
     --destructive: 0 72% 51%;
@@ -95,6 +95,13 @@
   }
 
   .text-gradient-violet {
+    background: linear-gradient(135deg, hsl(262 83% 52%) 0%, hsl(285 83% 58%) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .dark .text-gradient-violet {
     background: linear-gradient(135deg, hsl(262 83% 65%) 0%, hsl(290 83% 70%) 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
