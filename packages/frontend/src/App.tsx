@@ -1,5 +1,5 @@
 import { Suspense, lazy } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AppShell } from '@/components/layout/AppShell';
 import { LoadingState } from '@/components/shared/LoadingState';
@@ -29,10 +29,24 @@ const queryClient = new QueryClient({
   },
 });
 
+function PublicProfileRoute() {
+  const { username } = useParams<{ username: string }>();
+  if (!username?.startsWith('@')) {
+    return <Navigate to="/" replace />;
+  }
+  return <PublicProfile />;
+}
+
 function AuthGuard({ children }: { children: React.ReactElement }) {
+  const location = useLocation();
+
+  // Public profile routes (e.g. /@username or /u/username) do not require authentication
+  if (location.pathname.startsWith('/@') || location.pathname.startsWith('/u/')) {
+    return children;
+  }
+
   const { data: setupStatus, isLoading: setupLoading } = useSetupStatus();
   const { data: auth, isLoading: authLoading } = useAuth();
-  const location = useLocation();
 
   if (setupLoading || authLoading) {
     return (
@@ -47,11 +61,6 @@ function AuthGuard({ children }: { children: React.ReactElement }) {
     if (location.pathname !== '/setup') {
       return <Navigate to="/setup" replace />;
     }
-    return children;
-  }
-
-  // Public profile routes (e.g. /@username or /u/username) do not require authentication
-  if (location.pathname.startsWith('/@') || location.pathname.startsWith('/u/')) {
     return children;
   }
 
@@ -91,8 +100,8 @@ export default function App() {
                 {/* Public / Setup Routes */}
                 <Route path="/setup" element={<Setup />} />
                 <Route path="/login" element={<Login />} />
-                <Route path="/@:username" element={<PublicProfile />} />
                 <Route path="/u/:username" element={<PublicProfile />} />
+                <Route path="/:username" element={<PublicProfileRoute />} />
 
                 {/* Authenticated Application Shell */}
                 <Route
