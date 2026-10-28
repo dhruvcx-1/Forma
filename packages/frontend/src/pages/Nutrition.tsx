@@ -266,7 +266,7 @@ export default function Nutrition() {
   const calorieProgress = Math.min(100, Math.round((todayCalories / (calories || 1)) * 100));
 
   return (
-    <div className="space-y-6 pb-12">
+    <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-8 pb-12">
       {/* Header */}
       <div>
         <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground flex items-center gap-2.5">

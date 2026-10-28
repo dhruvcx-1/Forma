@@ -192,7 +192,7 @@ export default function Fasting() {
   };
 
   return (
-    <div className="space-y-6 pb-12">
+    <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-8 pb-12">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
