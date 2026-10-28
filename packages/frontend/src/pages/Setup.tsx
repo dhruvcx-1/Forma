@@ -104,7 +104,7 @@ export default function Setup() {
                     id="username"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    placeholder="dhruv"
+                    placeholder="Choose your username"
                     className="pl-9"
                     required
                     autoFocus
@@ -120,7 +120,7 @@ export default function Setup() {
                     id="displayName"
                     value={displayName}
                     onChange={(e) => setDisplayName(e.target.value)}
-                    placeholder="Dhruv"
+                    placeholder="Your Nick Name"
                     className="pl-9"
                   />
                 </div>
@@ -165,11 +165,10 @@ export default function Setup() {
                   <button
                     type="button"
                     onClick={() => setUnits('metric')}
-                    className={`flex items-center justify-center gap-2 p-3 rounded-xl border text-sm font-medium transition-all ${
-                      units === 'metric'
-                        ? 'border-primary bg-primary/10 text-primary shadow-sm'
-                        : 'border-border text-muted-foreground hover:bg-secondary'
-                    }`}
+                    className={`flex items-center justify-center gap-2 p-3 rounded-xl border text-sm font-medium transition-all ${units === 'metric'
+                      ? 'border-primary bg-primary/10 text-primary shadow-sm'
+                      : 'border-border text-muted-foreground hover:bg-secondary'
+                      }`}
                   >
                     <Scale className="w-4 h-4" />
                     <span>Metric (kg / cm)</span>
@@ -177,11 +176,10 @@ export default function Setup() {
                   <button
                     type="button"
                     onClick={() => setUnits('imperial')}
-                    className={`flex items-center justify-center gap-2 p-3 rounded-xl border text-sm font-medium transition-all ${
-                      units === 'imperial'
-                        ? 'border-primary bg-primary/10 text-primary shadow-sm'
-                        : 'border-border text-muted-foreground hover:bg-secondary'
-                    }`}
+                    className={`flex items-center justify-center gap-2 p-3 rounded-xl border text-sm font-medium transition-all ${units === 'imperial'
+                      ? 'border-primary bg-primary/10 text-primary shadow-sm'
+                      : 'border-border text-muted-foreground hover:bg-secondary'
+                      }`}
                   >
                     <Scale className="w-4 h-4" />
                     <span>Imperial (lbs / in)</span>

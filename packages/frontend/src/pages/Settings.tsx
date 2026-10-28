@@ -392,7 +392,7 @@ export default function Settings() {
                     id="display_name"
                     value={displayName}
                     onChange={(e) => setDisplayName(e.target.value)}
-                    placeholder="e.g. Dhruv Chaturvedi"
+                    placeholder="e.g. Your Name"
                     className="h-9 text-xs"
                     maxLength={64}
                   />
@@ -479,14 +479,12 @@ export default function Settings() {
                     queryClient.invalidateQueries({ queryKey: ['auth'] });
                   });
                 }}
-                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                  isPublic ? 'bg-primary' : 'bg-muted'
-                }`}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${isPublic ? 'bg-primary' : 'bg-muted'
+                  }`}
               >
                 <span
-                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
-                    isPublic ? 'translate-x-5' : 'translate-x-0'
-                  }`}
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${isPublic ? 'translate-x-5' : 'translate-x-0'
+                    }`}
                 />
               </button>
             </div>
@@ -559,11 +557,10 @@ export default function Settings() {
                   key={t}
                   type="button"
                   onClick={() => setTheme(t)}
-                  className={`flex flex-col items-center justify-center p-3 rounded-xl border text-xs font-semibold capitalize transition-all ${
-                    theme === t
+                  className={`flex flex-col items-center justify-center p-3 rounded-xl border text-xs font-semibold capitalize transition-all ${theme === t
                       ? 'border-primary bg-primary/10 text-primary shadow-sm ring-1 ring-primary'
                       : 'border-border text-muted-foreground hover:bg-secondary'
-                  }`}
+                    }`}
                 >
                   <span>{t}</span>
                 </button>
@@ -588,22 +585,20 @@ export default function Settings() {
               <button
                 type="button"
                 onClick={() => setUnitSystem('metric')}
-                className={`flex items-center justify-center gap-2 p-3.5 rounded-xl border text-xs font-semibold transition-all ${
-                  unitSystem === 'metric'
+                className={`flex items-center justify-center gap-2 p-3.5 rounded-xl border text-xs font-semibold transition-all ${unitSystem === 'metric'
                     ? 'border-primary bg-primary/10 text-primary shadow-sm ring-1 ring-primary'
                     : 'border-border text-muted-foreground hover:bg-secondary'
-                }`}
+                  }`}
               >
                 <span>Metric (Kilograms & Centimeters)</span>
               </button>
               <button
                 type="button"
                 onClick={() => setUnitSystem('imperial')}
-                className={`flex items-center justify-center gap-2 p-3.5 rounded-xl border text-xs font-semibold transition-all ${
-                  unitSystem === 'imperial'
+                className={`flex items-center justify-center gap-2 p-3.5 rounded-xl border text-xs font-semibold transition-all ${unitSystem === 'imperial'
                     ? 'border-primary bg-primary/10 text-primary shadow-sm ring-1 ring-primary'
                     : 'border-border text-muted-foreground hover:bg-secondary'
-                }`}
+                  }`}
               >
                 <span>Imperial (Pounds & Inches)</span>
               </button>

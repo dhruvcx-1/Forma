@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import { Activity, Scale, Ruler, Camera, Database, Menu } from 'lucide-react';
+import { Activity, Scale, Ruler, Camera, Target, Menu } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const NAV_ITEMS = [
@@ -7,7 +7,7 @@ const NAV_ITEMS = [
   { to: '/log', label: 'Log', icon: Scale },
   { to: '/measurements', label: 'Measure', icon: Ruler },
   { to: '/photos', label: 'Photos', icon: Camera },
-  { to: '/data', label: 'Data', icon: Database },
+  { to: '/goals', label: 'Goals', icon: Target },
 ];
 
 interface MobileNavProps {
