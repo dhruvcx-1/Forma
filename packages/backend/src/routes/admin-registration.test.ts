@@ -169,4 +169,40 @@ describe('Multi-User Registration & Admin Controls', () => {
     expect(roleRes.statusCode).toBe(200);
     expect(roleRes.json().role).toBe('admin');
   });
+
+  it('GET /api/auth/check-username checks username availability', async () => {
+    // 1. Initial setup with 'taken_user'
+    await fastify.inject({
+      method: 'POST',
+      url: '/api/auth/setup',
+      payload: {
+        username: 'taken_user',
+        password: 'password123',
+      },
+    });
+
+    // 2. Check existing username (case-insensitive)
+    const res1 = await fastify.inject({
+      method: 'GET',
+      url: '/api/auth/check-username?username=TAKEN_USER',
+    });
+    expect(res1.statusCode).toBe(200);
+    expect(res1.json().available).toBe(false);
+
+    // 3. Check available username
+    const res2 = await fastify.inject({
+      method: 'GET',
+      url: '/api/auth/check-username?username=free_user',
+    });
+    expect(res2.statusCode).toBe(200);
+    expect(res2.json().available).toBe(true);
+
+    // 4. Check invalid short username
+    const res3 = await fastify.inject({
+      method: 'GET',
+      url: '/api/auth/check-username?username=ab',
+    });
+    expect(res3.statusCode).toBe(400);
+    expect(res3.json().available).toBe(false);
+  });
 });
