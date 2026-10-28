@@ -27,10 +27,12 @@
 - 🧬 **Body Composition** — Deterministic US Navy Hodgdon-Beckett circumference formula & WHO BMI classification with visible formula transparent assumptions.
 - 🎯 **Target Goals & Pacing** — SVG circular milestone visualizer, required weekly pace calculations, and estimated completion trajectories.
 - 📸 **Private Progress Photos** — Local filesystem storage (JPEG/PNG/WebP), timeline gallery by perspective (front/side/back), and side-by-side before/after comparison.
+- 👤 **Custom Profiles & Avatars** — Upload and manage personal avatar pictures with automatic cleanup, custom display names, and bio snippets.
+- 🌐 **Public Progress Showcase** — Opt-in public profile page (`/@username` or `/u/username`) to proudly share weight milestones, target goals, and trend charts without requiring visitors to log in. Circumferences, private notes, and photos remain strictly private.
+- 📱 **Adaptive Mobile UI & PWA** — Responsive bottom bar, quick top actions, and an expandable slide-over drawer for easy access on mobile devices, plus PWA installation on iOS/Android/Desktop.
 - 💎 **Refined Glassmorphism** — Translucent blurred surfaces, high-contrast dark and light modes, smooth transitions, and tabular numeral typography.
 - 🔒 **Privacy-First & Self-Hosted** — 100% self-contained SQLite WAL database, Argon2id encryption, secure session cookies, zero external telemetry, zero third-party cloud calls.
 - 💾 **Data Portability** — Complete JSON database backups and CSV spreadsheets for weight and measurement records.
-- 📱 **Progressive Web App (PWA)** — Installable on iOS, Android, and Desktop with responsive layouts.
 
 ---
 
@@ -265,3 +267,9 @@ npm run build
 ## 📄 License
 
 Licensed under the [MIT License](LICENSE). Built for self-hosters and privacy advocates.
+
+---
+
+<div align="center">
+  <sub>Made with ❤️ by <strong>Dhruv Chaturvedi</strong>.</sub>
+</div>

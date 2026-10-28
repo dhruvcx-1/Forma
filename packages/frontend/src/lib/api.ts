@@ -36,20 +36,28 @@ export const api = {
   },
 
   async post<T>(path: string, body?: unknown): Promise<T> {
+    const headers: Record<string, string> = {};
+    if (body !== undefined) {
+      headers['Content-Type'] = 'application/json';
+    }
     const res = await fetch(`${BASE}${path}`, {
       method: 'POST',
       credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
     return handleResponse<T>(res);
   },
 
   async put<T>(path: string, body?: unknown): Promise<T> {
+    const headers: Record<string, string> = {};
+    if (body !== undefined) {
+      headers['Content-Type'] = 'application/json';
+    }
     const res = await fetch(`${BASE}${path}`, {
       method: 'PUT',
       credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
     return handleResponse<T>(res);

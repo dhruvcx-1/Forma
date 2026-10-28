@@ -388,7 +388,7 @@ export default function PublicProfile() {
       {/* Footer */}
       <footer className="border-t border-border/60 py-6 text-center text-xs text-muted-foreground space-y-1">
         <p>Tracked with Forma • Privacy-First Health Analytics</p>
-        <p className="text-[11px] opacity-75">Made with &lt;3 by Dhruv Chaturvedi.</p>
+        <p className="text-[11px] opacity-75">Made with ❤️ by Dhruv Chaturvedi.</p>
       </footer>
     </div>
   );

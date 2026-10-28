@@ -50,6 +50,19 @@ export const fastify = Fastify({
   ajv: { customOptions: { strict: false } },
 });
 
+// Safely handle empty JSON bodies without throwing FST_ERR_CTP_EMPTY_JSON_BODY
+fastify.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, body: string, done) => {
+  if (!body || body.trim() === '') {
+    return done(null, {});
+  }
+  try {
+    done(null, JSON.parse(body));
+  } catch (err: any) {
+    err.statusCode = 400;
+    done(err, undefined);
+  }
+});
+
 // ---------------------------------------------------------------------------
 // Plugins
 // ---------------------------------------------------------------------------

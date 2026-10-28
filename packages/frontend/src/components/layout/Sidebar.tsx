@@ -14,6 +14,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth, useLogout } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 
@@ -35,11 +36,18 @@ interface SidebarProps {
 export function Sidebar({ collapsed = false, onClose }: SidebarProps) {
   const { data: auth } = useAuth();
   const logout = useLogout();
+  const queryClient = useQueryClient();
   const navigate = useNavigate();
 
   const handleLogout = async () => {
-    await logout.mutateAsync();
-    navigate('/login');
+    try {
+      await logout.mutateAsync();
+    } catch (err) {
+      console.warn('Logout error, clearing state locally:', err);
+    } finally {
+      queryClient.setQueryData(['auth'], null);
+      navigate('/login');
+    }
   };
 
   return (

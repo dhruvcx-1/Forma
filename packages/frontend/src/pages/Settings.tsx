@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import {
@@ -21,10 +22,11 @@ import {
   Code2,
   Lock,
   CheckCheck,
+  LogOut,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { MeasurementDefinition } from '@/types/api';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth, useLogout } from '@/hooks/useAuth';
 import { useTheme } from '@/hooks/useTheme';
 import { useUnits } from '@/hooks/useUnits';
 import { GlassCard, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -37,10 +39,23 @@ import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 
 export default function Settings() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const { data: auth } = useAuth();
+  const logout = useLogout();
   const { theme, setTheme } = useTheme();
   const { units } = useUnits();
   const avatarInputRef = useRef<HTMLInputElement>(null);
+
+  const handleLogout = async () => {
+    try {
+      await logout.mutateAsync();
+    } catch (err) {
+      console.warn('Logout error, clearing state locally:', err);
+    } finally {
+      queryClient.setQueryData(['auth'], null);
+      navigate('/login');
+    }
+  };
 
   // Queries
   const { data: settings = {} } = useQuery<Record<string, string>>({
@@ -197,14 +212,27 @@ export default function Settings() {
   return (
     <div className="p-4 md:p-8 max-w-4xl mx-auto space-y-8">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
-          <Settings2 className="h-7 w-7 text-primary" />
-          <span>Settings & Preferences</span>
-        </h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          Customize your profile, public sharing, appearance, and biometrics.
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
+            <Settings2 className="h-7 w-7 text-primary" />
+            <span>Settings & Preferences</span>
+          </h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            Customize your profile, public sharing, appearance, and biometrics.
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={handleLogout}
+          className="text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30 self-start sm:self-auto gap-1.5 shrink-0"
+          title="Sign out of your account"
+        >
+          <LogOut className="h-4 w-4" />
+          <span>Sign Out</span>
+        </Button>
       </div>
 
       <div className="space-y-6">
@@ -672,8 +700,8 @@ export default function Settings() {
             {/* Creator Credit */}
             <div className="pt-3 border-t border-border/40 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs">
               <div className="flex items-center gap-2 text-foreground/90 font-medium">
-                <Heart className="h-4 w-4 text-violet-400 fill-violet-400/20" />
-                <span>Made with &lt;3 by Dhruv Chaturvedi.</span>
+                <Heart className="h-4 w-4 text-rose-500 fill-rose-500/20" />
+                <span>Made with ❤️ by Dhruv Chaturvedi.</span>
               </div>
               <a
                 href="https://github.com/dhruvcx-1/Forma"

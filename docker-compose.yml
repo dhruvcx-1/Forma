@@ -4,6 +4,7 @@ services:
   forma:
     image: ${GHCR_IMAGE:-ghcr.io/dhruvcx-1/forma:latest}
     container_name: forma
+    pull_policy: always
     restart: unless-stopped
     ports:
       - "${EXTERNAL_PORT:-8080}:3001"
@@ -17,7 +18,7 @@ services:
     volumes:
       - forma_data:/app/data
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3001/api/health"]
+      test: [ "CMD", "wget", "-qO-", "http://127.0.0.1:3001/api/health" ]
       interval: 30s
       timeout: 10s
       start_period: 15s

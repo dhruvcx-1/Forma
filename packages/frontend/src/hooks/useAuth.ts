@@ -23,8 +23,9 @@ export function useAuth() {
 export function useLogout() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => api.post('/auth/logout'),
+    mutationFn: () => api.post('/auth/logout', {}),
     onSuccess: () => {
+      queryClient.setQueryData(['auth'], null);
       queryClient.invalidateQueries({ queryKey: ['auth'] });
     },
   });

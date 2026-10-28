@@ -149,7 +149,12 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     if (sessionId) {
       deleteSession(sessionId);
     }
-    reply.clearCookie(SESSION_COOKIE_NAME, { path: '/' });
+    reply.clearCookie(SESSION_COOKIE_NAME, {
+      path: '/',
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+    });
     return reply.send({ ok: true });
   });
 
