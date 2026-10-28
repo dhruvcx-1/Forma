@@ -292,6 +292,165 @@ const fastingRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.send({ success: true });
     }
   );
+
+  /**
+   * GET /api/fasting/widget-token
+   * Retrieves or creates the profile's secure widget token.
+   */
+  fastify.get(
+    '/api/fasting/widget-token',
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const profileId = request.profile!.id;
+      let row = db
+        .prepare('SELECT value FROM settings WHERE profile_id = ? AND key = ?')
+        .get(profileId, 'fasting_widget_token') as { value: string } | undefined;
+
+      if (!row) {
+        const token = 'fwt_' + nanoid(24);
+        db.prepare(
+          'INSERT INTO settings (id, profile_id, key, value) VALUES (?, ?, ?, ?)'
+        ).run(nanoid(), profileId, 'fasting_widget_token', token);
+        row = { value: token };
+      }
+
+      return reply.send({ token: row.value });
+    }
+  );
+
+  /**
+   * POST /api/fasting/widget-token/regenerate
+   * Regenerates a new widget token, revoking the previous one.
+   */
+  fastify.post(
+    '/api/fasting/widget-token/regenerate',
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const profileId = request.profile!.id;
+      const newToken = 'fwt_' + nanoid(24);
+
+      const existing = db
+        .prepare('SELECT id FROM settings WHERE profile_id = ? AND key = ?')
+        .get(profileId, 'fasting_widget_token') as { id: string } | undefined;
+
+      if (existing) {
+        db.prepare(
+          "UPDATE settings SET value = ? WHERE id = ?"
+        ).run(newToken, existing.id);
+      } else {
+        db.prepare(
+          'INSERT INTO settings (id, profile_id, key, value) VALUES (?, ?, ?, ?)'
+        ).run(nanoid(), profileId, 'fasting_widget_token', newToken);
+      }
+
+      return reply.send({ token: newToken });
+    }
+  );
+
+  /**
+   * GET /api/public/fasting/widget
+   * Public unauthenticated endpoint for external widgets, iframes, and JSON clients.
+   */
+  fastify.get('/api/public/fasting/widget', async (request, reply) => {
+    const { token, username } = request.query as { token?: string; username?: string };
+
+    const STAGES = [
+      { id: 1, minHours: 0, maxHours: 4, name: 'Fed & Anabolic State', tagline: 'Digestion & Nutrient Absorption', color: '#3b82f6' },
+      { id: 2, minHours: 4, maxHours: 8, name: 'Post-Absorptive State', tagline: 'Blood Sugar Normalization', color: '#06b6d4' },
+      { id: 3, minHours: 8, maxHours: 12, name: 'Early Fat Burning', tagline: 'Glycogen Depletion Commences', color: '#10b981' },
+      { id: 4, minHours: 12, maxHours: 16, name: 'The Metabolic Switch', tagline: 'Fat Oxidation & Early Ketones', color: '#eab308' },
+      { id: 5, minHours: 16, maxHours: 24, name: 'Deep Ketosis & Autophagy', tagline: 'Cellular Cleansing & Recycling', color: '#f97316' },
+      { id: 6, minHours: 24, maxHours: 48, name: 'Peak Autophagy & HGH Surge', tagline: 'Deep Repair & Renewal', color: '#a855f7' },
+      { id: 7, minHours: 48, maxHours: 999999, name: 'Stem Cell & Immune Reset', tagline: 'Immune System Regeneration', color: '#ec4899' },
+    ];
+
+    let profile: { id: string; username: string; display_name: string | null } | undefined;
+
+    if (token) {
+      const setting = db
+        .prepare(
+          "SELECT s.profile_id, p.username, p.display_name FROM settings s JOIN profiles p ON p.id = s.profile_id WHERE s.key = 'fasting_widget_token' AND s.value = ?"
+        )
+        .get(token) as { profile_id: string; username: string; display_name: string | null } | undefined;
+
+      if (setting) {
+        profile = { id: setting.profile_id, username: setting.username, display_name: setting.display_name };
+      }
+    } else if (username) {
+      const clean = username.replace(/^@/, '').trim();
+      const p = db
+        .prepare(
+          'SELECT id, username, display_name FROM profiles WHERE LOWER(username) = LOWER(?) AND is_public = 1'
+        )
+        .get(clean) as { id: string; username: string; display_name: string | null } | undefined;
+      if (p) profile = p;
+    }
+
+    if (!profile) {
+      return reply.code(404).send({ error: 'Widget not found or invalid token' });
+    }
+
+    const activeFast = db
+      .prepare(
+        "SELECT * FROM fasting_sessions WHERE profile_id = ? AND status = 'active' ORDER BY started_at DESC LIMIT 1"
+      )
+      .get(profile.id) as {
+        id: string;
+        fast_type: string;
+        target_duration_hours: number;
+        started_at: string;
+      } | undefined;
+
+    if (!activeFast) {
+      return reply.send({
+        active: false,
+        profile: {
+          username: profile.username,
+          display_name: profile.display_name,
+        },
+        fast: null,
+      });
+    }
+
+    const nowMs = Date.now();
+    const startMs = new Date(activeFast.started_at).getTime();
+    const elapsedMs = Math.max(0, nowMs - startMs);
+    const elapsedSecs = Math.floor(elapsedMs / 1000);
+    const elapsedHours = elapsedMs / (1000 * 60 * 60);
+    const targetHours = Number(activeFast.target_duration_hours);
+    const remainingHours = Math.max(0, targetHours - elapsedHours);
+    const remainingSecs = Math.max(0, Math.floor(remainingHours * 3600));
+    const progressPercent = Math.min(100, Math.round((elapsedHours / targetHours) * 100));
+
+    let currentStage = STAGES[STAGES.length - 1];
+    for (const s of STAGES) {
+      if (elapsedHours >= s.minHours && elapsedHours < s.maxHours) {
+        currentStage = s;
+        break;
+      }
+    }
+
+    return reply.send({
+      active: true,
+      profile: {
+        username: profile.username,
+        display_name: profile.display_name,
+      },
+      fast: {
+        id: activeFast.id,
+        fast_type: activeFast.fast_type,
+        target_duration_hours: targetHours,
+        started_at: activeFast.started_at,
+        elapsed_seconds: elapsedSecs,
+        elapsed_hours: Math.round(elapsedHours * 100) / 100,
+        remaining_seconds: remainingSecs,
+        remaining_hours: Math.round(remainingHours * 100) / 100,
+        progress_percent: progressPercent,
+        is_goal_reached: elapsedHours >= targetHours,
+        stage: currentStage,
+      },
+    });
+  });
 };
 
 export default fastingRoutes;

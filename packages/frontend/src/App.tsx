@@ -22,6 +22,7 @@ const Login = lazy(() => import('@/pages/Login'));
 const Register = lazy(() => import('@/pages/Register'));
 const Setup = lazy(() => import('@/pages/Setup'));
 const PublicProfile = lazy(() => import('@/pages/PublicProfile'));
+const FastingWidgetPage = lazy(() => import('@/pages/FastingWidgetPage'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -44,7 +45,7 @@ function AuthGuard({ children }: { children: React.ReactElement }) {
   const location = useLocation();
 
   // Public profile routes (e.g. /@username or /u/username) do not require authentication
-  if (location.pathname.startsWith('/@') || location.pathname.startsWith('/u/')) {
+  if (location.pathname.startsWith('/@') || location.pathname.startsWith('/u/') || location.pathname === '/fasting/widget') {
     return children;
   }
 
@@ -106,6 +107,7 @@ export default function App() {
                 <Route path="/setup" element={<Setup />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
+                <Route path="/fasting/widget" element={<FastingWidgetPage />} />
                 <Route path="/u/:username" element={<PublicProfile />} />
                 <Route path="/:username" element={<PublicProfileRoute />} />
 

@@ -20,12 +20,14 @@ import {
   Smile,
   ChevronRight,
   Info,
+  Share2,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { GlassCard, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { FastingShareModal } from '@/components/fasting/FastingShareModal';
 import {
   FASTING_STAGES,
   getFastingStage,
@@ -73,6 +75,7 @@ export default function Fasting() {
   const [isStartOpen, setIsStartOpen] = useState(false);
   const [isEndOpen, setIsEndOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isShareOpen, setIsShareOpen] = useState(false);
 
   // Form states
   const [selectedPreset, setSelectedPreset] = useState(FAST_PRESETS[0]);
@@ -210,6 +213,15 @@ export default function Fasting() {
             <Button
               variant="outline"
               size="sm"
+              onClick={() => setIsShareOpen(true)}
+              className="gap-1.5 text-xs"
+            >
+              <Share2 className="w-3.5 h-3.5 text-primary" />
+              <span>Widget & Share</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => {
                 setCustomStartTime(new Date(activeFast.started_at).toISOString().slice(0, 16));
                 setIsEditOpen(true);
@@ -230,7 +242,16 @@ export default function Fasting() {
             </Button>
           </div>
         ) : (
-          <Button
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setIsShareOpen(true)}
+              className="gap-1.5"
+            >
+              <Share2 className="w-4 h-4 text-primary" />
+              <span>Widget Link</span>
+            </Button>
+            <Button
             onClick={() => {
               setCustomStartTime(new Date().toISOString().slice(0, 16));
               setIsStartOpen(true);
@@ -240,6 +261,7 @@ export default function Fasting() {
             <Play className="w-4 h-4 fill-current" />
             <span>Start Fasting</span>
           </Button>
+          </div>
         )}
       </div>
 
@@ -783,6 +805,7 @@ export default function Fasting() {
           </motion.div>
         </div>
       )}
+      <FastingShareModal isOpen={isShareOpen} onClose={() => setIsShareOpen(false)} />
     </div>
   );
 }
