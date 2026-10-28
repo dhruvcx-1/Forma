@@ -17,8 +17,8 @@ import { differenceInDays, parseISO, subDays, format } from 'date-fns';
 import { api } from '@/lib/api';
 import type { WeightEntry, Goal, MeasurementEntry, MeasurementDefinition } from '@/types/api';
 import { useUnits } from '@/hooks/useUnits';
-import { displayWeight, weightUnit } from '@/lib/units';
-import { formatDate, formatChange } from '@/lib/utils';
+import { displayWeight, weightUnit, displayLength, lengthUnit } from '@/lib/units';
+import { cn, formatDate, formatChange } from '@/lib/utils';
 import { GlassCard, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -42,22 +42,32 @@ const cardVariants = {
 
 function StatCard({
   title,
+  icon: Icon,
   children,
+  footer,
   className,
 }: {
   title: string;
+  icon?: React.ComponentType<{ className?: string }>;
   children: React.ReactNode;
+  footer?: React.ReactNode;
   className?: string;
 }) {
   return (
-    <motion.div variants={cardVariants}>
-      <GlassCard className={className}>
-        <CardHeader>
-          <CardTitle className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
-            {title}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pt-2">{children}</CardContent>
+    <motion.div variants={cardVariants} className="h-full">
+      <GlassCard className={cn('h-full flex flex-col justify-between p-4 space-y-2 border-primary/20 hover:border-primary/40 transition-colors', className)}>
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between text-muted-foreground">
+            <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">
+              {title}
+            </span>
+            {Icon && <Icon className="h-4 w-4 text-primary/80 shrink-0" />}
+          </div>
+          <div className="pt-0.5">{children}</div>
+        </div>
+        <div className="pt-2.5 border-t border-border/40 text-xs min-h-[32px] flex items-center">
+          {footer || <span className="text-muted-foreground/60 text-[11px]">—</span>}
+        </div>
       </GlassCard>
     </motion.div>
   );
@@ -180,21 +190,30 @@ export default function Dashboard() {
         className="grid grid-cols-2 lg:grid-cols-3 gap-3"
       >
         {/* Current Weight */}
-        <StatCard title="Current Weight">
-          {latestEntry ? (
-            <div className="space-y-2">
-              <div className="flex items-end gap-2">
-                <span className="text-2xl font-bold tabular-nums">
-                  {displayWeight(latestEntry.weight, units).toFixed(1)}
+        <StatCard
+          title="Current Weight"
+          icon={Scale}
+          footer={
+            latestEntry ? (
+              <div className="w-full flex items-center justify-between gap-2">
+                <span className="text-[11px] text-muted-foreground truncate">
+                  {formatDate(latestEntry.date, 'MMM d, yyyy')}
                 </span>
-                <span className="text-sm text-muted-foreground mb-0.5">{weightUnit(units)}</span>
+                {sparkData.length > 1 && (
+                  <div className="w-20 h-5 shrink-0 opacity-80 hover:opacity-100 transition-opacity">
+                    <Sparkline data={sparkData} height={20} />
+                  </div>
+                )}
               </div>
-              <p className="text-xs text-muted-foreground">
-                {formatDate(latestEntry.date, 'MMM d')}
-              </p>
-              <div className="h-8">
-                <Sparkline data={sparkData} />
-              </div>
+            ) : null
+          }
+        >
+          {latestEntry ? (
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-2xl lg:text-3xl font-extrabold tabular-nums text-foreground">
+                {displayWeight(latestEntry.weight, units).toFixed(1)}
+              </span>
+              <span className="text-xs font-medium text-muted-foreground">{weightUnit(units)}</span>
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">No data yet</p>
@@ -202,32 +221,34 @@ export default function Dashboard() {
         </StatCard>
 
         {/* Weight Change */}
-        <StatCard title="Weight Change">
-          {change7d !== null ? (
-            <div className="space-y-2">
-              <div className="flex items-center gap-1.5">
-                {change7d <= 0 ? (
-                  <TrendingDown className="h-4 w-4 text-success" />
-                ) : (
-                  <TrendingUp className="h-4 w-4 text-destructive" />
-                )}
-                <span
-                  className={`text-2xl font-bold tabular-nums ${change7d <= 0 ? 'text-success' : 'text-destructive'}`}
-                >
-                  {formatChange(displayWeight(change7d, units), 1)}
-                </span>
-                <span className="text-sm text-muted-foreground">{weightUnit(units)}</span>
-              </div>
-              <div className="flex gap-2">
-                <Badge variant="secondary" className="text-[10px]">
+        <StatCard
+          title="Weight Change"
+          icon={change7d !== null ? (change7d <= 0 ? TrendingDown : TrendingUp) : Activity}
+          footer={
+            change7d !== null ? (
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <Badge variant="secondary" className="text-[10px] py-0 px-1.5 bg-secondary/80 font-medium border border-border/50">
                   7D: {formatChange(displayWeight(change7d, units), 1)}
                 </Badge>
                 {change30d !== null && (
-                  <Badge variant="secondary" className="text-[10px]">
+                  <Badge variant="secondary" className="text-[10px] py-0 px-1.5 bg-secondary/80 font-medium border border-border/50">
                     30D: {formatChange(displayWeight(change30d, units), 1)}
                   </Badge>
                 )}
               </div>
+            ) : null
+          }
+        >
+          {change7d !== null ? (
+            <div className="flex items-baseline gap-1.5">
+              <span
+                className={`text-2xl lg:text-3xl font-extrabold tabular-nums ${
+                  change7d <= 0 ? 'text-emerald-500' : 'text-rose-500'
+                }`}
+              >
+                {formatChange(displayWeight(change7d, units), 1)}
+              </span>
+              <span className="text-xs font-medium text-muted-foreground">{weightUnit(units)}</span>
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">Need 2+ entries</p>
@@ -235,54 +256,78 @@ export default function Dashboard() {
         </StatCard>
 
         {/* Goal Progress */}
-        <StatCard title="Goal Progress">
-          {goalProgress ? (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-2xl font-bold tabular-nums">
-                  {goalProgress.pct.toFixed(0)}%
-                </span>
-                <Target className="h-4 w-4 text-primary" />
+        <StatCard
+          title="Goal Progress"
+          icon={Target}
+          footer={
+            goalProgress ? (
+              <div className="w-full space-y-1">
+                <div className="h-1.5 bg-secondary/80 rounded-full overflow-hidden">
+                  <motion.div
+                    className="h-full bg-primary rounded-full"
+                    initial={{ width: 0 }}
+                    animate={{ width: `${goalProgress.pct}%` }}
+                    transition={{ duration: 0.8, ease: 'easeOut' }}
+                  />
+                </div>
+                <p className="text-[11px] text-muted-foreground truncate">
+                  {Math.abs(displayWeight(goalProgress.remaining, units)).toFixed(1)} {weightUnit(units)} remaining
+                </p>
               </div>
-              <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
-                <motion.div
-                  className="h-full bg-primary rounded-full"
-                  initial={{ width: 0 }}
-                  animate={{ width: `${goalProgress.pct}%` }}
-                  transition={{ duration: 0.8, ease: 'easeOut' }}
-                />
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {Math.abs(displayWeight(goalProgress.remaining, units)).toFixed(1)}{' '}
-                {weightUnit(units)} remaining
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <p className="text-sm text-muted-foreground">No goal set</p>
-              <Button asChild size="sm" variant="ghost" className="h-7 text-xs px-2">
+            ) : (
+              <Button asChild size="sm" variant="ghost" className="h-6 text-xs px-2 -ml-1 text-primary hover:text-primary">
                 <Link to="/goals">
                   <Plus className="h-3 w-3 mr-1" />
                   Set a goal
                 </Link>
               </Button>
+            )
+          }
+        >
+          {goalProgress ? (
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-2xl lg:text-3xl font-extrabold tabular-nums text-foreground">
+                {goalProgress.pct.toFixed(0)}%
+              </span>
+              <span className="text-xs font-medium text-muted-foreground">achieved</span>
             </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">No goal set</p>
           )}
         </StatCard>
 
         {/* Waist */}
-        <StatCard title="Waist">
-          {latestWaist ? (
-            <div className="space-y-1">
-              <div className="flex items-end gap-2">
-                <span className="text-2xl font-bold tabular-nums">{latestWaist.value.toFixed(1)}</span>
-                <span className="text-sm text-muted-foreground mb-0.5">{waistDef?.unit || 'cm'}</span>
+        <StatCard
+          title="Waist"
+          icon={Ruler}
+          footer={
+            latestWaist ? (
+              <div className="w-full flex items-center justify-between text-[11px] text-muted-foreground">
+                <span>Latest circumference</span>
+                {prevWaist && (
+                  <span className={`font-semibold tabular-nums ${
+                    latestWaist.value <= prevWaist.value ? 'text-emerald-500' : 'text-rose-500'
+                  }`}>
+                    {formatChange(displayLength(latestWaist.value - prevWaist.value, units), 1)}
+                  </span>
+                )}
               </div>
-              {prevWaist && (
-                <p className="text-xs text-muted-foreground">
-                  Change: {formatChange(latestWaist.value - prevWaist.value)}
-                </p>
-              )}
+            ) : (
+              <Button asChild size="sm" variant="ghost" className="h-6 text-xs px-2 -ml-1 text-primary hover:text-primary">
+                <Link to="/measurements">
+                  <Plus className="h-3 w-3 mr-1" />
+                  Log waist
+                </Link>
+              </Button>
+            )
+          }
+        >
+          {latestWaist ? (
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-2xl lg:text-3xl font-extrabold tabular-nums text-foreground">
+                {displayLength(latestWaist.value, units).toFixed(1)}
+              </span>
+              <span className="text-xs font-medium text-muted-foreground">{lengthUnit(units)}</span>
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">No data</p>
@@ -290,23 +335,42 @@ export default function Dashboard() {
         </StatCard>
 
         {/* Streak */}
-        <StatCard title="Log Streak">
-          <div className="space-y-1">
-            <div className="flex items-end gap-2">
-              <span className="text-2xl font-bold tabular-nums">{streak}</span>
-              <Flame className={`h-5 w-5 mb-0.5 ${streak > 0 ? 'text-warning' : 'text-muted-foreground'}`} />
+        <StatCard
+          title="Log Streak"
+          icon={Flame}
+          footer={
+            <div className="text-[11px] text-muted-foreground">
+              {streak > 0 ? `${streak} ${streak === 1 ? 'day' : 'days'} in a row` : 'Log today to start streak'}
             </div>
-            <p className="text-xs text-muted-foreground">
-              {streak === 1 ? 'day' : 'days'} in a row
-            </p>
+          }
+        >
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-2xl lg:text-3xl font-extrabold tabular-nums text-foreground">
+              {streak}
+            </span>
+            <span className="text-xs font-medium text-muted-foreground">
+              {streak === 1 ? 'day' : 'days'}
+            </span>
           </div>
         </StatCard>
 
         {/* Entries count */}
-        <StatCard title="Total Entries">
-          <div className="space-y-1">
-            <span className="text-2xl font-bold tabular-nums">{weightEntries.length}</span>
-            <p className="text-xs text-muted-foreground">weight logs</p>
+        <StatCard
+          title="Total Entries"
+          icon={Activity}
+          footer={
+            <div className="text-[11px] text-muted-foreground truncate">
+              {sorted.length > 0 ? `Since ${formatDate(sorted[sorted.length - 1].date, 'MMM d, yyyy')}` : 'Tracked entries'}
+            </div>
+          }
+        >
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-2xl lg:text-3xl font-extrabold tabular-nums text-foreground">
+              {weightEntries.length}
+            </span>
+            <span className="text-xs font-medium text-muted-foreground">
+              {weightEntries.length === 1 ? 'log' : 'logs'}
+            </span>
           </div>
         </StatCard>
       </motion.div>
