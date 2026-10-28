@@ -157,7 +157,7 @@ export default function Measurements() {
       }
 
       if (itemsToSave.length === 0) return;
-      return api.post('/measurements/entries/batch', { entries: itemsToSave });
+      return api.post('/measurements/entries', { entries: itemsToSave });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['measurement-entries'] });

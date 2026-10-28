@@ -253,79 +253,87 @@ const measurementsRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   /**
-   * POST /api/measurements/entries
+   * POST /api/measurements/entries & /api/measurements/entries/batch
    * Batch-create measurement entries.
    */
+  const handleBatchCreateEntries = async (request: any, reply: any) => {
+    const result = BatchCreateSchema.safeParse(request.body);
+    if (!result.success) {
+      return reply.code(400).send({ error: 'Validation failed', issues: result.error.issues });
+    }
+
+    const profileId = request.profile!.id;
+    const rawEntries = Array.isArray(result.data) ? result.data : result.data.entries;
+
+    const insertStmt = db.prepare(
+      `INSERT INTO measurement_entries (id, profile_id, definition_id, value, recorded_at, notes)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    );
+
+    const created: any[] = [];
+
+    const insertAll = db.transaction(() => {
+      for (const entry of rawEntries) {
+        const defId = String(entry.definition_id ?? entry.definitionId);
+        const recAt = (entry.recorded_at ?? entry.date ?? new Date().toISOString()).split('T')[0];
+
+        // Verify the definition belongs to the profile or is a system one
+        const def = db
+          .prepare(
+            `SELECT id FROM measurement_definitions
+             WHERE id = ? AND (is_system = 1 OR profile_id = ?)`,
+          )
+          .get(defId, profileId);
+
+        if (!def) {
+          throw Object.assign(new Error(`Definition not found: ${defId}`), {
+            statusCode: 404,
+          });
+        }
+
+        const id = nanoid();
+        insertStmt.run(
+          id,
+          profileId,
+          defId,
+          entry.value,
+          recAt,
+          entry.notes ?? null,
+        );
+
+        const row = db
+          .prepare('SELECT * FROM measurement_entries WHERE id = ?')
+          .get(id) as any;
+        created.push({
+          ...row,
+          date: (row.recorded_at || '').split('T')[0],
+          definitionId: row.definition_id,
+        });
+      }
+    });
+
+    try {
+      insertAll();
+    } catch (err: unknown) {
+      const e = err as { statusCode?: number; message?: string };
+      return reply
+        .code(e.statusCode ?? 500)
+        .send({ error: e.message ?? 'Internal error' });
+    }
+
+    return reply.code(201).send(created);
+  };
+
   fastify.post(
     '/api/measurements/entries',
     { preHandler: requireAuth },
-    async (request, reply) => {
-      const result = BatchCreateSchema.safeParse(request.body);
-      if (!result.success) {
-        return reply.code(400).send({ error: 'Validation failed', issues: result.error.issues });
-      }
+    handleBatchCreateEntries,
+  );
 
-      const profileId = request.profile!.id;
-      const rawEntries = Array.isArray(result.data) ? result.data : result.data.entries;
-
-      const insertStmt = db.prepare(
-        `INSERT INTO measurement_entries (id, profile_id, definition_id, value, recorded_at, notes)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-      );
-
-      const created: any[] = [];
-
-      const insertAll = db.transaction(() => {
-        for (const entry of rawEntries) {
-          const defId = String(entry.definition_id ?? entry.definitionId);
-          const recAt = (entry.recorded_at ?? entry.date ?? new Date().toISOString()).split('T')[0];
-
-          // Verify the definition belongs to the profile or is a system one
-          const def = db
-            .prepare(
-              `SELECT id FROM measurement_definitions
-               WHERE id = ? AND (is_system = 1 OR profile_id = ?)`,
-            )
-            .get(defId, profileId);
-
-          if (!def) {
-            throw Object.assign(new Error(`Definition not found: ${defId}`), {
-              statusCode: 404,
-            });
-          }
-
-          const id = nanoid();
-          insertStmt.run(
-            id,
-            profileId,
-            defId,
-            entry.value,
-            recAt,
-            entry.notes ?? null,
-          );
-
-          const row = db
-            .prepare('SELECT * FROM measurement_entries WHERE id = ?')
-            .get(id) as any;
-          created.push({
-            ...row,
-            date: (row.recorded_at || '').split('T')[0],
-            definitionId: row.definition_id,
-          });
-        }
-      });
-
-      try {
-        insertAll();
-      } catch (err: unknown) {
-        const e = err as { statusCode?: number; message?: string };
-        return reply
-          .code(e.statusCode ?? 500)
-          .send({ error: e.message ?? 'Internal error' });
-      }
-
-      return reply.code(201).send(created);
-    },
+  fastify.post(
+    '/api/measurements/entries/batch',
+    { preHandler: requireAuth },
+    handleBatchCreateEntries,
   );
 
   /**
