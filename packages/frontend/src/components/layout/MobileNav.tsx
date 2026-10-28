@@ -1,13 +1,13 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import { Activity, Scale, Ruler, Camera, Target, Menu } from 'lucide-react';
+import { Activity, Scale, Ruler, Camera, Target, Timer, Utensils, Menu } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const NAV_ITEMS = [
   { to: '/', label: 'Dashboard', icon: Activity, exact: true },
-  { to: '/log', label: 'Log', icon: Scale },
+  { to: '/fasting', label: 'Fasting', icon: Timer },
+  { to: '/nutrition', label: 'Nutrition', icon: Utensils },
   { to: '/measurements', label: 'Measure', icon: Ruler },
   { to: '/photos', label: 'Photos', icon: Camera },
-  { to: '/goals', label: 'Goals', icon: Target },
 ];
 
 interface MobileNavProps {

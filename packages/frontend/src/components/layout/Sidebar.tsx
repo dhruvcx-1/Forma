@@ -5,6 +5,8 @@ import {
   Ruler,
   Target,
   Camera,
+  Timer,
+  Utensils,
   Settings2,
   Database,
   LogOut,
@@ -20,6 +22,8 @@ import { Button } from '@/components/ui/button';
 
 const NAV_ITEMS = [
   { to: '/', label: 'Dashboard', icon: Activity, exact: true },
+  { to: '/fasting', label: 'Fasting', icon: Timer },
+  { to: '/nutrition', label: 'Nutrition', icon: Utensils },
   { to: '/log', label: 'Log Weight', icon: Scale },
   { to: '/measurements', label: 'Measurements', icon: Ruler },
   { to: '/goals', label: 'Goals', icon: Target },

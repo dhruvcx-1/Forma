@@ -27,6 +27,8 @@ import { WeightChart } from '@/components/charts/WeightChart';
 import { Sparkline } from '@/components/charts/Sparkline';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { BodyCompositionSection } from '@/components/dashboard/BodyCompositionSection';
+import { FastingWidget } from '@/components/dashboard/FastingWidget';
+import { NutritionWidget } from '@/components/dashboard/NutritionWidget';
 
 const containerVariants = {
   hidden: {},
@@ -382,6 +384,17 @@ export default function Dashboard() {
         transition={{ delay: 0.2, duration: 0.3 }}
       >
         <BodyCompositionSection />
+      </motion.div>
+
+      {/* Fasting & Nutrition Live Trackers */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.25, duration: 0.3 }}
+        className="grid grid-cols-1 md:grid-cols-2 gap-4"
+      >
+        <FastingWidget />
+        <NutritionWidget />
       </motion.div>
 
       {/* Weight Chart */}
