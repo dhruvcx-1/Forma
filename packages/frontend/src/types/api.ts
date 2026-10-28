@@ -8,6 +8,7 @@ export interface User {
   avatarUrl?: string | null;
   avatar_url?: string | null;
   bio?: string | null;
+  role?: 'admin' | 'user';
   isPublic?: boolean;
   is_public?: boolean;
   units?: 'metric' | 'imperial';
@@ -154,6 +155,30 @@ export interface SetupStatus {
   isSetup: boolean;
   isAuthenticated?: boolean;
   authenticated?: boolean;
+  registrationEnabled?: boolean;
+  userCount?: number;
+}
+
+export interface AdminUser {
+  id: string;
+  username: string;
+  displayName: string | null;
+  display_name: string | null;
+  avatarUrl: string | null;
+  avatar_url: string | null;
+  bio: string | null;
+  role: 'admin' | 'user';
+  isPublic: boolean;
+  is_public: boolean;
+  createdAt: string;
+  created_at: string;
+  weightCount: number;
+  measurementCount: number;
+}
+
+export interface AdminSettings {
+  registration_enabled: boolean;
+  has_override: boolean;
 }
 
 export interface AuthStatus {

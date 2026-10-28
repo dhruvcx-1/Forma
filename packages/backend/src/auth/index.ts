@@ -14,6 +14,7 @@ export interface Profile {
   avatar_url: string | null;
   bio: string | null;
   is_public: boolean;
+  role: 'admin' | 'user';
   created_at: string;
 }
 
@@ -30,6 +31,7 @@ interface ProfileRow {
   avatar_url: string | null;
   bio: string | null;
   is_public: number;
+  role?: string | null;
   created_at: string;
 }
 
@@ -81,7 +83,7 @@ const stmtGetSession = db.prepare<[string], SessionRow>(`
 `);
 
 const stmtGetProfile = db.prepare<[string], ProfileRow>(`
-  SELECT id, username, display_name, avatar_url, bio, is_public, created_at
+  SELECT id, username, display_name, avatar_url, bio, is_public, role, created_at
   FROM profiles
   WHERE id = ?
 `);
@@ -126,6 +128,7 @@ export function getSession(sessionId: string): Profile | null {
     avatar_url: profile.avatar_url ?? null,
     bio: profile.bio ?? null,
     is_public: Boolean(profile.is_public),
+    role: (profile.role as 'admin' | 'user') || 'user',
     created_at: profile.created_at,
   };
 }
@@ -144,6 +147,7 @@ export function getProfileById(profileId: string): Profile | null {
     avatar_url: profile.avatar_url ?? null,
     bio: profile.bio ?? null,
     is_public: Boolean(profile.is_public),
+    role: (profile.role as 'admin' | 'user') || 'user',
     created_at: profile.created_at,
   };
 }

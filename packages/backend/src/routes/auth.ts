@@ -42,13 +42,35 @@ function sessionCookieOptions(expiresIn = COOKIE_TTL_MS) {
 }
 
 // ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+export function isRegistrationEnabled(): boolean {
+  try {
+    const row = db
+      .prepare('SELECT value FROM system_settings WHERE key = ?')
+      .get('registration_enabled') as { value: string } | undefined;
+    if (row) {
+      return row.value === 'true' || row.value === '1';
+    }
+  } catch {
+    // If table does not exist yet (during early initialization)
+  }
+  const envVal = process.env.ALLOW_REGISTRATION;
+  if (envVal !== undefined) {
+    return envVal !== 'false' && envVal !== '0';
+  }
+  return true; // enabled by default
+}
+
+// ---------------------------------------------------------------------------
 // Route plugin
 // ---------------------------------------------------------------------------
 
 const authRoutes: FastifyPluginAsync = async (fastify) => {
   /**
    * GET /api/auth/status and GET /api/setup/status
-   * Returns whether the app has been set up and whether the caller is authenticated.
+   * Returns whether the app has been set up, whether registration is open, and caller auth status.
    */
   const handleStatus = async (request: any, reply: any) => {
     const profileCount = (
@@ -61,6 +83,8 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       isSetup: profileCount > 0,
       isAuthenticated: request.profile !== null,
       authenticated: request.profile !== null,
+      registrationEnabled: isRegistrationEnabled(),
+      userCount: profileCount,
     });
   };
 
@@ -95,8 +119,8 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     const profileId = nanoid();
 
     db.prepare(
-      'INSERT INTO profiles (id, username, password_hash, display_name) VALUES (?, ?, ?, ?)',
-    ).run(profileId, username, passwordHash, displayName ?? null);
+      'INSERT INTO profiles (id, username, password_hash, display_name, role) VALUES (?, ?, ?, ?, ?)',
+    ).run(profileId, username, passwordHash, displayName ?? null, 'admin');
 
     const sessionId = createSession(profileId);
     reply.setCookie(SESSION_COOKIE_NAME, sessionId, sessionCookieOptions());
@@ -105,6 +129,61 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       id: profileId,
       username,
       displayName: displayName ?? null,
+      role: 'admin',
+    });
+  });
+
+  /**
+   * POST /api/auth/register
+   * Public registration route (when registration is enabled).
+   */
+  fastify.post('/api/auth/register', async (request, reply) => {
+    if (!isRegistrationEnabled()) {
+      return reply
+        .code(403)
+        .send({ error: 'Registration is currently disabled by administrator' });
+    }
+
+    const result = SetupSchema.safeParse(request.body);
+    if (!result.success) {
+      return reply.code(400).send({
+        error: 'Validation failed',
+        issues: result.error.issues,
+      });
+    }
+
+    const { username, password, displayName } = result.data;
+
+    // Check if username is already taken (case-insensitive)
+    const existing = db
+      .prepare('SELECT id FROM profiles WHERE LOWER(username) = LOWER(?)')
+      .get(username);
+    if (existing) {
+      return reply.code(409).send({ error: 'Username is already taken' });
+    }
+
+    const profileCount = (
+      db.prepare('SELECT COUNT(*) as count FROM profiles').get() as {
+        count: number;
+      }
+    ).count;
+
+    const role = profileCount === 0 ? 'admin' : 'user';
+    const passwordHash = await hashPassword(password);
+    const profileId = nanoid();
+
+    db.prepare(
+      'INSERT INTO profiles (id, username, password_hash, display_name, role) VALUES (?, ?, ?, ?, ?)',
+    ).run(profileId, username, passwordHash, displayName ?? null, role);
+
+    const sessionId = createSession(profileId);
+    reply.setCookie(SESSION_COOKIE_NAME, sessionId, sessionCookieOptions());
+
+    return reply.code(201).send({
+      id: profileId,
+      username,
+      displayName: displayName ?? null,
+      role,
     });
   });
 
@@ -175,6 +254,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
         avatar_url: p.avatar_url,
         avatarUrl: p.avatar_url,
         bio: p.bio,
+        role: p.role || 'user',
         is_public: p.is_public,
         isPublic: p.is_public,
         created_at: p.created_at,

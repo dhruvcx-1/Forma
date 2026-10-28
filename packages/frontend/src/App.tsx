@@ -17,6 +17,7 @@ const Photos = lazy(() => import('@/pages/Photos'));
 const Settings = lazy(() => import('@/pages/Settings'));
 const DataIO = lazy(() => import('@/pages/DataIO'));
 const Login = lazy(() => import('@/pages/Login'));
+const Register = lazy(() => import('@/pages/Register'));
 const Setup = lazy(() => import('@/pages/Setup'));
 const PublicProfile = lazy(() => import('@/pages/PublicProfile'));
 
@@ -69,14 +70,16 @@ function AuthGuard({ children }: { children: React.ReactElement }) {
     return <Navigate to="/login" replace />;
   }
 
-  // If not authenticated, route to /login
+  const isPublicAuthPage = location.pathname === '/login' || location.pathname === '/register';
+
+  // If not authenticated, route to /login or /register
   const isAuthenticated = auth?.authenticated || (auth as any)?.id !== undefined;
-  if (!isAuthenticated && location.pathname !== '/login') {
+  if (!isAuthenticated && !isPublicAuthPage) {
     return <Navigate to="/login" replace />;
   }
 
-  // If already authenticated and on /login, redirect to /
-  if (isAuthenticated && location.pathname === '/login') {
+  // If already authenticated and on /login or /register, redirect to /
+  if (isAuthenticated && isPublicAuthPage) {
     return <Navigate to="/" replace />;
   }
 
@@ -100,6 +103,7 @@ export default function App() {
                 {/* Public / Setup Routes */}
                 <Route path="/setup" element={<Setup />} />
                 <Route path="/login" element={<Login />} />
+                <Route path="/register" element={<Register />} />
                 <Route path="/u/:username" element={<PublicProfile />} />
                 <Route path="/:username" element={<PublicProfileRoute />} />
 

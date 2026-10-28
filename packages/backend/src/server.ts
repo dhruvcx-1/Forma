@@ -19,6 +19,7 @@ import settingsRoutes from './routes/settings.js';
 import bodyCompositionRoutes from './routes/body-composition.js';
 import profileRoutes from './routes/profile.js';
 import publicRoutes from './routes/public.js';
+import adminRoutes from './routes/admin.js';
 
 // ---------------------------------------------------------------------------
 // Environment validation
@@ -105,6 +106,7 @@ await fastify.register(settingsRoutes);
 await fastify.register(bodyCompositionRoutes);
 await fastify.register(profileRoutes);
 await fastify.register(publicRoutes);
+await fastify.register(adminRoutes);
 
 // ---------------------------------------------------------------------------
 // Health check

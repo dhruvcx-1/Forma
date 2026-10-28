@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Lock, User, ArrowRight, ShieldCheck } from 'lucide-react';
 import { api } from '@/lib/api';
+import { useSetupStatus } from '@/hooks/useAuth';
 import { GlassCard, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,6 +11,7 @@ import { Label } from '@/components/ui/label';
 
 export default function Login() {
   const navigate = useNavigate();
+  const { data: setupStatus } = useSetupStatus();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -112,6 +114,16 @@ export default function Login() {
             </form>
           </CardContent>
         </GlassCard>
+
+        {/* Navigation link to Register */}
+        {setupStatus?.registrationEnabled !== false && (
+          <div className="mt-4 text-center text-xs text-muted-foreground">
+            Don&apos;t have an account?{' '}
+            <Link to="/register" className="text-primary hover:underline font-medium">
+              Create an account
+            </Link>
+          </div>
+        )}
 
         <div className="mt-6 flex items-center justify-center gap-2 text-xs text-muted-foreground">
           <ShieldCheck className="w-4 h-4 text-emerald-500" />

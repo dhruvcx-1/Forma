@@ -23,9 +23,11 @@ import {
   Lock,
   CheckCheck,
   LogOut,
+  ShieldCheck,
+  Users,
 } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { MeasurementDefinition } from '@/types/api';
+import type { MeasurementDefinition, AdminUser, AdminSettings } from '@/types/api';
 import { useAuth, useLogout } from '@/hooks/useAuth';
 import { useTheme } from '@/hooks/useTheme';
 import { useUnits } from '@/hooks/useUnits';
@@ -195,6 +197,50 @@ export default function Settings() {
 
   // Custom definition delete
   const [deleteDefId, setDeleteDefId] = useState<string | number | null>(null);
+  const [deleteUserId, setDeleteUserId] = useState<string | null>(null);
+
+  const isAdmin = auth?.user?.role === 'admin';
+
+  // Admin Queries
+  const { data: adminSettings } = useQuery<AdminSettings>({
+    queryKey: ['admin-settings'],
+    queryFn: () => api.get<AdminSettings>('/admin/settings'),
+    enabled: isAdmin,
+  });
+
+  const { data: adminUsers = [] } = useQuery<AdminUser[]>({
+    queryKey: ['admin-users'],
+    queryFn: () => api.get<AdminUser[]>('/admin/users'),
+    enabled: isAdmin,
+  });
+
+  // Admin Mutations
+  const toggleRegistrationMutation = useMutation({
+    mutationFn: (enabled: boolean) =>
+      api.put('/admin/settings', { registration_enabled: enabled }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-settings'] });
+      queryClient.invalidateQueries({ queryKey: ['setup-status'] });
+    },
+  });
+
+  const updateRoleMutation = useMutation({
+    mutationFn: ({ userId, role }: { userId: string; role: 'admin' | 'user' }) =>
+      api.put(`/admin/users/${userId}/role`, { role }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+      queryClient.invalidateQueries({ queryKey: ['auth'] });
+    },
+  });
+
+  const deleteUserMutation = useMutation({
+    mutationFn: (userId: string) => api.delete(`/admin/users/${userId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+      setDeleteUserId(null);
+    },
+  });
+
   const deleteDefMutation = useMutation({
     mutationFn: (id: string | number) => api.delete(`/measurements/definitions/${id}`),
     onSuccess: () => {
@@ -656,7 +702,160 @@ export default function Settings() {
           </CardContent>
         </GlassCard>
 
-        {/* Section 7: About Forma (Application Details & Creator Credit) */}
+        {/* Section 7 (Admin Only): Instance Administration & User Directory */}
+        {isAdmin && (
+          <GlassCard className="border-border/70 shadow-xl overflow-hidden">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="h-5 w-5 text-violet-400" />
+                  <CardTitle className="text-base font-semibold">Instance Administration</CardTitle>
+                </div>
+                <Badge className="bg-violet-500/15 text-violet-400 border border-violet-500/30 text-[10px]">
+                  Admin Access
+                </Badge>
+              </div>
+              <CardDescription className="text-xs">
+                Manage instance-wide registration, access policies, and registered user accounts.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Registration Toggle Card */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl border border-border/50 bg-secondary/20 gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs font-semibold text-foreground">Public User Registration</p>
+                    <Badge
+                      variant={adminSettings?.registration_enabled ? 'default' : 'secondary'}
+                      className={
+                        adminSettings?.registration_enabled
+                          ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px] px-2 py-0.5'
+                          : 'bg-muted text-muted-foreground text-[10px] px-2 py-0.5'
+                      }
+                    >
+                      {adminSettings?.registration_enabled ? 'Open' : 'Closed'}
+                    </Badge>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground max-w-md leading-relaxed">
+                    Allow new visitors to register at <code className="text-primary font-mono text-[11px]">/register</code>. Manageable via <code className="font-mono text-[11px]">ALLOW_REGISTRATION</code> env or this toggle.
+                  </p>
+                </div>
+
+                <Button
+                  variant={adminSettings?.registration_enabled ? 'destructive' : 'default'}
+                  size="sm"
+                  onClick={() =>
+                    toggleRegistrationMutation.mutate(!adminSettings?.registration_enabled)
+                  }
+                  disabled={toggleRegistrationMutation.isPending}
+                  className="rounded-xl text-xs h-9 px-4 shrink-0"
+                >
+                  {adminSettings?.registration_enabled ? 'Disable Registration' : 'Enable Registration'}
+                </Button>
+              </div>
+
+              {/* User Directory */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Users className="h-4 w-4 text-primary" />
+                    <p className="text-xs font-semibold text-foreground">Registered User Accounts</p>
+                  </div>
+                  <span className="text-[11px] text-muted-foreground">
+                    {adminUsers.length} {adminUsers.length === 1 ? 'user' : 'users'}
+                  </span>
+                </div>
+
+                <div className="divide-y divide-border/40 border border-border/40 rounded-xl overflow-hidden bg-background/50">
+                  {adminUsers.map((user) => {
+                    const isSelf = String(user.id) === String(auth?.user?.id);
+                    return (
+                      <div
+                        key={user.id}
+                        className="p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-secondary/20 transition-colors"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          {user.avatar_url ? (
+                            <img
+                              src={user.avatar_url}
+                              alt={user.display_name || user.username}
+                              className="w-9 h-9 rounded-full object-cover border border-primary/20 shrink-0"
+                            />
+                          ) : (
+                            <div className="w-9 h-9 rounded-full gradient-violet flex items-center justify-center text-white text-xs font-bold shrink-0">
+                              {(user.display_name || user.username).charAt(0).toUpperCase()}
+                            </div>
+                          )}
+
+                          <div className="min-w-0 space-y-0.5">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <p className="text-xs font-semibold text-foreground truncate">
+                                {user.display_name || user.username}
+                              </p>
+                              {isSelf && (
+                                <Badge variant="outline" className="text-[9px] py-0 px-1 border-primary/40 text-primary">
+                                  You
+                                </Badge>
+                              )}
+                              <Badge
+                                className={
+                                  user.role === 'admin'
+                                    ? 'bg-violet-500/20 text-violet-400 border border-violet-500/30 text-[9px] py-0 px-1.5'
+                                    : 'bg-secondary text-secondary-foreground text-[9px] py-0 px-1.5'
+                                }
+                              >
+                                {user.role === 'admin' ? 'Admin' : 'User'}
+                              </Badge>
+                              {user.is_public && (
+                                <Badge className="text-[9px] py-0 px-1.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                  Public Profile
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-muted-foreground truncate">
+                              @{user.username} &bull; {user.weightCount} weigh-ins &bull; {user.measurementCount} measurements
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Actions */}
+                        {!isSelf && (
+                          <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-[11px] h-7 px-2.5 rounded-lg"
+                              disabled={updateRoleMutation.isPending}
+                              onClick={() =>
+                                updateRoleMutation.mutate({
+                                  userId: user.id,
+                                  role: user.role === 'admin' ? 'user' : 'admin',
+                                })
+                              }
+                            >
+                              {user.role === 'admin' ? 'Demote to User' : 'Make Admin'}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              onClick={() => setDeleteUserId(user.id)}
+                              className="text-muted-foreground hover:text-destructive h-7 w-7 rounded-lg"
+                              title="Delete user account"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </CardContent>
+          </GlassCard>
+        )}
+
+        {/* Section 8: About Forma (Application Details & Creator Credit) */}
         <GlassCard className="border-border/70 shadow-xl overflow-hidden">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
@@ -726,6 +925,17 @@ export default function Settings() {
         confirmText="Delete"
         destructive
         onConfirm={() => deleteDefId && deleteDefMutation.mutate(deleteDefId)}
+      />
+
+      {/* Delete User Account Confirmation */}
+      <ConfirmDialog
+        open={deleteUserId !== null}
+        onOpenChange={(open) => !open && setDeleteUserId(null)}
+        title="Delete User Account"
+        description="Are you sure you want to delete this user? All of their weight entries, circumference logs, goals, and progress photos will be permanently deleted."
+        confirmText="Delete Account"
+        destructive
+        onConfirm={() => deleteUserId && deleteUserMutation.mutate(deleteUserId)}
       />
     </div>
   );

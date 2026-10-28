@@ -164,6 +164,30 @@ const migrations: Record<number, Migration> = {
       db.exec('ALTER TABLE profiles ADD COLUMN is_public INTEGER NOT NULL DEFAULT 0;');
     }
   },
+  3: (db) => {
+    const cols = db.pragma('table_info(profiles)') as Array<{ name: string }>;
+    const colNames = new Set(cols.map((c) => c.name));
+
+    if (!colNames.has('role')) {
+      db.exec("ALTER TABLE profiles ADD COLUMN role TEXT NOT NULL DEFAULT 'user';");
+      // Designate the earliest existing profile as admin
+      db.exec(`
+        UPDATE profiles
+        SET role = 'admin'
+        WHERE id = (
+          SELECT id FROM profiles ORDER BY created_at ASC LIMIT 1
+        );
+      `);
+    }
+
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS system_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `);
+  },
 };
 
 // ---------------------------------------------------------------------------

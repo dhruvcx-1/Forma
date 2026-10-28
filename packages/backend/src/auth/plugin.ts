@@ -40,3 +40,19 @@ export async function requireAuth(
     reply.code(401).send({ error: 'Unauthorized' });
   }
 }
+
+// ---------------------------------------------------------------------------
+// requireAdmin — preHandler that ensures the user has role 'admin'
+// ---------------------------------------------------------------------------
+export async function requireAdmin(
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<void> {
+  if (!request.profile) {
+    reply.code(401).send({ error: 'Unauthorized' });
+    return;
+  }
+  if (request.profile.role !== 'admin') {
+    reply.code(403).send({ error: 'Forbidden: Admin access required' });
+  }
+}
