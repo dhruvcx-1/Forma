@@ -149,7 +149,7 @@ export default function Dashboard() {
   const waistEntries = waistDef
     ? [...measurementEntries]
         .filter((e) => e.definitionId === waistDef.id)
-        .sort((a, b) => b.date.localeCompare(a.date))
+        .sort((a, b) => (b.recorded_at || b.date).localeCompare(a.recorded_at || a.date))
     : [];
   const latestWaist = waistEntries[0];
   const prevWaist = waistEntries[1];

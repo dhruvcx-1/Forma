@@ -12,12 +12,13 @@ import {
   Edit2,
   ChevronRight,
   Activity,
+  Clock,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { MeasurementDefinition, MeasurementEntry } from '@/types/api';
 import { useUnits } from '@/hooks/useUnits';
 import { displayLength } from '@/lib/units';
-import { formatDate, formatChange } from '@/lib/utils';
+import { formatDate, formatDateTime, formatChange } from '@/lib/utils';
 import { GlassCard, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { MeasurementChart } from '@/components/charts/MeasurementChart';
@@ -220,23 +221,26 @@ export default function MeasurementDetail() {
             </div>
           ) : (
             <div className="divide-y divide-border/40 max-h-[400px] overflow-y-auto no-scrollbar">
-              {[...entries].reverse().map((entry) => {
-                const dispVal = displayLength(entry.value, units);
-                return (
-                  <div
-                    key={entry.id}
-                    className="flex items-center justify-between p-3.5 px-5 hover:bg-secondary/40 transition-colors"
-                  >
-                    <div className="space-y-0.5">
-                      <p className="font-semibold text-sm tabular-nums text-foreground">
-                        {dispVal.toFixed(1)}{' '}
-                        <span className="text-xs font-normal text-muted-foreground">{lenUnit}</span>
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {formatDate(entry.date, 'EEEE, MMM d, yyyy')}
-                        {entry.notes && <span className="italic ml-2">"{entry.notes}"</span>}
-                      </p>
-                    </div>
+              {[...entries]
+                .sort((a, b) => (b.recorded_at || b.date).localeCompare(a.recorded_at || a.date))
+                .map((entry) => {
+                  const dispVal = displayLength(entry.value, units);
+                  return (
+                    <div
+                      key={entry.id}
+                      className="flex items-center justify-between p-3.5 px-5 hover:bg-secondary/40 transition-colors"
+                    >
+                      <div className="space-y-0.5">
+                        <p className="font-semibold text-sm tabular-nums text-foreground">
+                          {dispVal.toFixed(1)}{' '}
+                          <span className="text-xs font-normal text-muted-foreground">{lenUnit}</span>
+                        </p>
+                        <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                          <Clock className="h-3 w-3 text-muted-foreground/70 inline" />
+                          <span>{formatDateTime(entry.recorded_at || entry.date, 'EEEE, MMM d, yyyy · h:mm:ss a')}</span>
+                          {entry.notes && <span className="italic ml-2">"{entry.notes}"</span>}
+                        </p>
+                      </div>
 
                     <Button
                       variant="ghost"

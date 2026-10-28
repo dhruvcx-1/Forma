@@ -16,6 +16,20 @@ export function formatDate(dateStr: string, fmt = 'MMM d, yyyy'): string {
   }
 }
 
+/** Format an ISO date/time string with full seconds display when available */
+export function formatDateTime(dateStr: string, fmt = 'MMM d, yyyy · h:mm:ss a'): string {
+  try {
+    if (!dateStr) return '';
+    // If only date string YYYY-MM-DD without time
+    if (dateStr.length === 10 && !dateStr.includes('T')) {
+      return format(parseISO(dateStr), 'MMM d, yyyy');
+    }
+    return format(parseISO(dateStr), fmt);
+  } catch {
+    return dateStr;
+  }
+}
+
 /** Format a date as relative time (e.g., "3 days ago") */
 export function formatRelative(dateStr: string): string {
   try {

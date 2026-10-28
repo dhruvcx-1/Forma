@@ -19,12 +19,13 @@ import {
   History,
   Activity,
   ArrowRight,
+  Clock,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { MeasurementDefinition, MeasurementEntry } from '@/types/api';
 import { useUnits } from '@/hooks/useUnits';
 import { displayLength, lengthUnit, inchesToCm } from '@/lib/units';
-import { todayISO, formatDate, formatChange } from '@/lib/utils';
+import { todayISO, formatDate, formatDateTime, formatChange } from '@/lib/utils';
 import { GlassCard, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -117,11 +118,23 @@ export default function Measurements() {
     return { latestByDef: latest, baselineByDef: baseline };
   }, [entries]);
 
+  // Helper for current local time HH:mm:ss
+  const currentTimeString = () => {
+    const d = new Date();
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
+  };
+
   // Form State for Log Session
   const [sessionDate, setSessionDate] = useState(todayISO());
+  const [sessionTime, setSessionTime] = useState(currentTimeString());
   const [values, setValues] = useState<Record<string | number, string>>({});
   const [sessionNotes, setSessionNotes] = useState('');
   const [saveSuccess, setSaveSuccess] = useState(false);
+
+  const handleSetTimeToNow = () => {
+    setSessionDate(todayISO());
+    setSessionTime(currentTimeString());
+  };
 
   // Custom Definition Modal
   const [customModalOpen, setCustomModalOpen] = useState(false);
@@ -138,10 +151,11 @@ export default function Measurements() {
     setValues((prev) => ({ ...prev, [defId]: val }));
   };
 
-  // Batch Save Mutation
+  // Batch Save Mutation with exact second timestamp
   const saveBatchMutation = useMutation({
     mutationFn: async () => {
       const itemsToSave: Array<{ definition_id: string; value: number; recorded_at: string; notes?: string }> = [];
+      const sessionTimestamp = `${sessionDate}T${sessionTime || '12:00:00'}`;
 
       for (const [defId, valStr] of Object.entries(values)) {
         const num = parseFloat(valStr);
@@ -150,7 +164,7 @@ export default function Measurements() {
           itemsToSave.push({
             definition_id: String(defId),
             value: parseFloat(cmVal.toFixed(2)),
-            recorded_at: sessionDate,
+            recorded_at: sessionTimestamp,
             notes: sessionNotes || undefined,
           });
         }
@@ -163,6 +177,7 @@ export default function Measurements() {
       queryClient.invalidateQueries({ queryKey: ['measurement-entries'] });
       setValues({});
       setSessionNotes('');
+      setSessionTime(currentTimeString());
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3500);
     },
@@ -234,19 +249,21 @@ export default function Measurements() {
       ? Math.round((selectedLatestDisp - selectedBaselineDisp) * 10) / 10
       : null;
 
-  // Filtered history list
+  // Filtered history list sorted strictly by timestamp with seconds descending
   const filteredHistory = useMemo(() => {
-    return entries.filter((e) => {
-      if (filterDefId !== 'all' && String(e.definitionId) !== filterDefId) return false;
-      if (searchQuery) {
-        const q = searchQuery.toLowerCase();
-        const def = definitions.find((d) => d.id === e.definitionId);
-        const nameMatch = def && def.name.toLowerCase().includes(q);
-        const dateMatch = e.date.includes(q);
-        if (!nameMatch && !dateMatch) return false;
-      }
-      return true;
-    });
+    return [...entries]
+      .sort((a, b) => (b.recorded_at || b.date).localeCompare(a.recorded_at || a.date))
+      .filter((e) => {
+        if (filterDefId !== 'all' && String(e.definitionId) !== filterDefId) return false;
+        if (searchQuery) {
+          const q = searchQuery.toLowerCase();
+          const def = definitions.find((d) => d.id === e.definitionId);
+          const nameMatch = def && def.name.toLowerCase().includes(q);
+          const dateMatch = (e.recorded_at || e.date).toLowerCase().includes(q);
+          if (!nameMatch && !dateMatch) return false;
+        }
+        return true;
+      });
   }, [entries, filterDefId, searchQuery, definitions]);
 
   // Quick prefill helper
@@ -478,7 +495,7 @@ export default function Measurements() {
                   <h3 className="text-sm font-bold text-foreground">Quick Session Logger</h3>
                   <p className="text-xs text-muted-foreground">Record all or multiple sites for today</p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <Button
                     type="button"
                     variant="ghost"
@@ -495,6 +512,27 @@ export default function Measurements() {
                     max={todayISO()}
                     className="h-8 text-xs rounded-lg w-32"
                   />
+                  <div className="relative flex items-center">
+                    <Clock className="w-3 h-3 absolute left-2 text-muted-foreground pointer-events-none" />
+                    <Input
+                      type="time"
+                      step="1"
+                      value={sessionTime}
+                      onChange={(e) => setSessionTime(e.target.value)}
+                      className="h-8 text-xs rounded-lg pl-6 pr-1 w-24 font-mono"
+                      title="Time of day (seconds included)"
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleSetTimeToNow}
+                    className="h-8 px-2 text-[11px] rounded-lg text-muted-foreground hover:text-foreground"
+                    title="Set to current local time"
+                  >
+                    Now
+                  </Button>
                 </div>
               </div>
 
@@ -548,19 +586,50 @@ export default function Measurements() {
       {/* VIEW 2: Anatomical Zones Cards Mode */}
       {activeTab === 'zones' && (
         <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-muted-foreground">
-              Measurements organized by anatomical zones. Click any item to explore its timeline.
-            </p>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handlePrefillLatest}
-              className="text-xs"
-            >
-              Prefill Previous Values
-            </Button>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl bg-secondary/20 border border-border/50">
+            <div>
+              <p className="text-xs font-semibold text-foreground">Session Date & Time</p>
+              <p className="text-[11px] text-muted-foreground">Entries will be timestamped with second accuracy</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handlePrefillLatest}
+                className="text-xs text-primary hover:text-primary"
+              >
+                Prefill Previous
+              </Button>
+              <Input
+                type="date"
+                value={sessionDate}
+                onChange={(e) => setSessionDate(e.target.value)}
+                max={todayISO()}
+                className="h-8 text-xs rounded-lg w-32"
+              />
+              <div className="relative flex items-center">
+                <Clock className="w-3 h-3 absolute left-2 text-muted-foreground pointer-events-none" />
+                <Input
+                  type="time"
+                  step="1"
+                  value={sessionTime}
+                  onChange={(e) => setSessionTime(e.target.value)}
+                  className="h-8 text-xs rounded-lg pl-6 pr-1 w-24 font-mono"
+                  title="Time of day (seconds included)"
+                />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleSetTimeToNow}
+                className="h-8 px-2 text-[11px] rounded-lg text-muted-foreground hover:text-foreground"
+                title="Set to current local time"
+              >
+                Now
+              </Button>
+            </div>
           </div>
 
           {/* Zones */}
@@ -727,7 +796,8 @@ export default function Measurements() {
                           </span>
                         </div>
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <span>{formatDate(entry.date, 'EEEE, MMM d, yyyy')}</span>
+                          <Clock className="w-3.5 h-3.5 text-muted-foreground/70" />
+                          <span>{formatDateTime(entry.recorded_at || entry.date, 'EEEE, MMM d, yyyy · h:mm:ss a')}</span>
                           {entry.notes && (
                             <span className="italic truncate max-w-xs">• "{entry.notes}"</span>
                           )}
