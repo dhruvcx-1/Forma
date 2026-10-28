@@ -88,7 +88,8 @@ Forma is packaged as a lightweight, production-ready container image published t
 ### Deploy in 2 Steps
 
 ```bash
-# 1. Download environment template
+# 1. Download docker-compose.yml and environment template
+curl -sO https://raw.githubusercontent.com/dhruvcx-1/Forma/master/docker-compose.yml
 curl -sO https://raw.githubusercontent.com/dhruvcx-1/Forma/master/.env.example
 cp .env.example .env
 
@@ -101,6 +102,49 @@ docker compose up -d
 ```
 
 Open your browser at **`http://localhost:8080`**. On first launch, you will be guided through setting up your private master profile.
+
+---
+
+## 📂 Data Storage & Directory Options
+
+Forma stores all persistent state inside `/app/data`:
+
+```text
+/app/data/
+├── body-tracker.db       # SQLite database (profiles, weights, measurements, goals, settings)
+├── body-tracker.db-wal   # SQLite Write-Ahead Log
+├── body-tracker.db-shm   # SQLite Shared Memory index
+└── photos/               # Uploaded progress photos and custom avatar pictures
+```
+
+You can choose between two persistence options in `docker-compose.yml`:
+
+### Option A: Named Docker Volume (Default)
+Docker manages the storage volume automatically under its volume directory:
+```yaml
+volumes:
+  - forma_data:/app/data
+```
+No manual directory creation or permission configuration needed.
+
+### Option B: Local Host Directory Bind-Mount
+If you prefer having direct access to the database file and photos folder on your host machine (e.g., for direct snapshots, rsync, or off-site backups):
+
+1. Create the data directory on your host:
+   ```bash
+   mkdir -p ./data/photos
+   ```
+2. In `docker-compose.yml`, uncomment the host directory bind mount and comment out the named volume:
+   ```yaml
+   volumes:
+     - ./data:/app/data
+     # - forma_data:/app/data
+   ```
+3. Start or restart the container:
+   ```bash
+   docker compose up -d
+   ```
+All database writes and uploaded photos will immediately be saved directly into `./data/` on your host machine.
 
 ---
 

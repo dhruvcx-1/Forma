@@ -13,10 +13,18 @@ services:
       PORT: 3001
       EXTERNAL_PORT: ${EXTERNAL_PORT:-8080}
       COOKIE_SECRET: ${COOKIE_SECRET:-b557d12345840e0323cff44866395a7121f10d29b8798b95472f9b3cc44b3d6d}
+      ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-true}
       DATABASE_PATH: /app/data/body-tracker.db
       PHOTOS_PATH: /app/data/photos
     volumes:
+      # --- Data Storage Options ---
+      # Option 1 (Default): Named Docker volume managed by Docker engine
       - forma_data:/app/data
+
+      # Option 2: Host directory bind-mount (uncomment below & comment out forma_data above)
+      # Grants direct access to body-tracker.db and photos/ directly on your host machine.
+      # Create directory first: mkdir -p ./data/photos
+      # - ./data:/app/data
     healthcheck:
       test: [ "CMD", "wget", "-qO-", "http://127.0.0.1:3001/api/health" ]
       interval: 30s
