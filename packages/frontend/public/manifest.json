@@ -1,4 +1,5 @@
 {
+  "id": "/",
   "name": "Forma – Body Tracker",
   "short_name": "Forma",
   "description": "Beautiful body progress tracking",
@@ -7,6 +8,12 @@
   "background_color": "#0A0A0F",
   "theme_color": "#7C3AED",
   "orientation": "portrait-primary",
+  "related_applications": [
+    {
+      "platform": "webapp",
+      "url": "/manifest.json"
+    }
+  ],
   "icons": [
     {
       "src": "/app.png",

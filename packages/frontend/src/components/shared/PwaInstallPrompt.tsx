@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Download, Share, X, Sparkles, Smartphone } from 'lucide-react';
+import { Download, Share, X, Check } from 'lucide-react';
 import { usePwaInstall } from '@/hooks/usePwaInstall';
 import { GlassCard, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 
 export function PwaInstallPrompt() {
-  const { canInstall, isIOS, hasDeferredPrompt, promptInstall, dismiss } = usePwaInstall();
+  const { canInstall, isIOS, hasDeferredPrompt, promptInstall, dismiss, markAsInstalled } = usePwaInstall();
   const [installing, setInstalling] = useState(false);
 
   if (!canInstall) {
@@ -68,7 +68,7 @@ export function PwaInstallPrompt() {
             {/* Content Body */}
             {isIOS && !hasDeferredPrompt ? (
               // iOS Safari instruction guide
-              <div className="p-2.5 rounded-xl bg-secondary/40 border border-border/50 text-xs text-muted-foreground space-y-2">
+              <div className="p-2.5 rounded-xl bg-secondary/40 border border-border/50 text-xs text-muted-foreground space-y-2.5">
                 <p className="text-[11px] leading-relaxed">
                   Install on your iPhone or iPad: tap the{' '}
                   <span className="inline-flex items-center gap-1 font-semibold text-foreground">
@@ -77,11 +77,18 @@ export function PwaInstallPrompt() {
                   button in Safari, then select{' '}
                   <span className="font-semibold text-foreground">Add to Home Screen</span>.
                 </p>
-                <div className="pt-1 flex justify-end">
+                <div className="pt-0.5 flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={markAsInstalled}
+                    className="text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+                  >
+                    Already added
+                  </button>
                   <Button
                     size="sm"
                     variant="default"
-                    onClick={dismiss}
+                    onClick={markAsInstalled}
                     className="h-7 text-xs px-3 rounded-lg"
                   >
                     Got it
@@ -94,24 +101,33 @@ export function PwaInstallPrompt() {
                 <p className="text-xs text-muted-foreground leading-relaxed">
                   Add Forma to your home screen or desktop for instant access, offline support, and full-screen tracking.
                 </p>
-                <div className="flex items-center justify-end gap-2 pt-0.5">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={dismiss}
-                    className="text-xs h-8 px-3 rounded-lg text-muted-foreground hover:text-foreground"
+                <div className="flex items-center justify-between gap-2 pt-0.5">
+                  <button
+                    type="button"
+                    onClick={markAsInstalled}
+                    className="text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
                   >
-                    Maybe Later
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={handleInstallClick}
-                    disabled={installing}
-                    className="text-xs h-8 px-3.5 gap-1.5 rounded-lg shadow-md shadow-primary/25"
-                  >
-                    <Download className="h-3.5 w-3.5" />
-                    <span>{installing ? 'Installing...' : 'Install App'}</span>
-                  </Button>
+                    Already installed
+                  </button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={dismiss}
+                      className="text-xs h-8 px-3 rounded-lg text-muted-foreground hover:text-foreground"
+                    >
+                      Maybe Later
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={handleInstallClick}
+                      disabled={installing}
+                      className="text-xs h-8 px-3.5 gap-1.5 rounded-lg shadow-md shadow-primary/25"
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      <span>{installing ? 'Installing...' : 'Install App'}</span>
+                    </Button>
+                  </div>
                 </div>
               </div>
             )}
