@@ -5,6 +5,7 @@ import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { MobileNav } from './MobileNav';
 import { Toaster } from '@/components/ui/toast';
+import { PwaInstallPrompt } from '@/components/shared/PwaInstallPrompt';
 
 export function AppShell() {
   const [collapsed, setCollapsed] = useState(false);
@@ -86,6 +87,7 @@ export function AppShell() {
         />
       </div>
 
+      <PwaInstallPrompt />
       <Toaster />
     </div>
   );
