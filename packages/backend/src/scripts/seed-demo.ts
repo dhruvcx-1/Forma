@@ -1,4 +1,4 @@
-import path from 'node:path';
+// import path from 'node:path';
 import { db } from '../db/index.js';
 import { hashPassword } from '../auth/index.js';
 import { nanoid } from 'nanoid';
@@ -71,7 +71,7 @@ async function seedDemoUser() {
      VALUES (?, ?, ?, 'kg', ?, ?)`
   );
 
-  let currentWeight = 91.5;
+  // let currentWeight = 91.5;
   for (let i = 60; i >= 0; i--) {
     const entryDate = subDays(new Date(), i);
     const dateStr = entryDate.toISOString();

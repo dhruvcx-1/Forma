@@ -133,8 +133,7 @@ export function calculateTdee(bmr: number, activityLevel: ActivityLevel = 'moder
 export function calculateProteinGrams(
   weightKg: number,
   heightCm: number,
-  dietType: DietType = 'high_protein_low_carb',
-  leanMassKg?: number | null
+  dietType: DietType = 'high_protein_low_carb'
 ): {
   proteinGrams: number;
   basisWeightKg: number;
@@ -224,7 +223,7 @@ export function generateMacroPlan(params: {
   }
 
   // 4. Protein calculation (applying >80kg rule)
-  const proteinInfo = calculateProteinGrams(weightKg, heightCm, dietType, leanMassKg);
+  const proteinInfo = calculateProteinGrams(weightKg, heightCm, dietType);
   const proteinGrams = proteinInfo.proteinGrams;
   const proteinCalories = proteinGrams * 4;
 
