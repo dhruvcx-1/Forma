@@ -3,7 +3,6 @@ name: Build and Publish Docker Image
 on:
   push:
     branches:
-      - main
       - master
       - "feature/*"
       - feature/public-profiles-and-avatars
