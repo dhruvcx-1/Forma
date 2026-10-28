@@ -50,17 +50,6 @@ export function TopBar({ sidebarCollapsed, onToggleSidebar, onOpenMobileMenu }: 
           )}
         </Button>
 
-        {/* Mobile menu drawer toggle button */}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onOpenMobileMenu}
-          className="md:hidden text-muted-foreground hover:text-foreground h-9 w-9"
-          title="Open menu"
-        >
-          <Menu className="h-5 w-5" />
-        </Button>
-
         {/* Brand icon on mobile */}
         <img
           src="/app.png"
