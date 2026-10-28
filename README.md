@@ -27,6 +27,9 @@
 - 🧬 **Body Composition** — Deterministic US Navy Hodgdon-Beckett circumference formula & WHO BMI classification with visible formula transparent assumptions.
 - 🎯 **Target Goals & Pacing** — SVG circular milestone visualizer, required weekly pace calculations, and estimated completion trajectories.
 - 📸 **Private Progress Photos** — Local filesystem storage (JPEG/PNG/WebP), timeline gallery by perspective (front/side/back), and side-by-side before/after comparison.
+- 👥 **Multi-User Architecture** — Full multi-user isolation with dedicated private data vaults for each account. First user is automatically assigned Admin privileges.
+- 📝 **Public Registration & Toggle** — Built-in `/register` page enabled by default, controllable dynamically via Admin Settings or the `ALLOW_REGISTRATION` env variable.
+- 🛡️ **Admin User Directory** — Dedicated server administration panel in Settings to manage user accounts, assign roles, and configure instance policies.
 - 👤 **Custom Profiles & Avatars** — Upload and manage personal avatar pictures with automatic cleanup, custom display names, and bio snippets.
 - 🌐 **Public Progress Showcase** — Opt-in public profile page (`/@username` or `/u/username`) to proudly share weight milestones, target goals, and trend charts without requiring visitors to log in. Circumferences, private notes, and photos remain strictly private.
 - 📱 **Adaptive Mobile UI & PWA** — Responsive bottom bar, quick top actions, and an expandable slide-over drawer for easy access on mobile devices, plus PWA installation on iOS/Android/Desktop.
@@ -108,6 +111,7 @@ All runtime options are managed via environment variables in `.env`:
 | Variable | Default | Purpose |
 |---|---|---|
 | `COOKIE_SECRET` | *(required)* | 32+ character random string for signing secure session cookies |
+| `ALLOW_REGISTRATION` | `true` | Enable or disable public user registration at `/register` |
 | `EXTERNAL_PORT` | `8080` | Host port exposed to your local network |
 | `PORT` | `3001` | Internal Node.js Fastify listener port |
 | `DATABASE_PATH` | `/app/data/body-tracker.db` | SQLite database file location inside container |
