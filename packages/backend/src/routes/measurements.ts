@@ -77,6 +77,52 @@ function slugify(name: string): string {
     .replace(/^_|_$/g, '');
 }
 
+/**
+ * Normalizes recorded_at date/time strings so they include exact seconds.
+ * Supports:
+ * - Full ISO 8601 strings (e.g. 2026-10-28T12:49:32.123Z)
+ * - Local datetime strings (e.g. 2026-10-28T12:49:32)
+ * - Date-only strings (e.g. 2026-10-28), where today's date gets the current time down to the second
+ */
+function normalizeRecordedAt(recordedAt?: string, date?: string): string {
+  let val = recordedAt ?? date;
+  if (!val) {
+    return new Date().toISOString();
+  }
+  val = val.trim();
+
+  // If only YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(val)) {
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+    if (val === todayStr) {
+      // Record current time of day down to the second
+      const timePart = now.toISOString().split('T')[1];
+      return `${val}T${timePart}`;
+    }
+    // Past or future day without time specified: default to midday UTC
+    return `${val}T12:00:00.000Z`;
+  }
+
+  // If YYYY-MM-DDTHH:mm (e.g. from input type datetime-local without seconds)
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(val)) {
+    return `${val}:00.000Z`;
+  }
+
+  // If YYYY-MM-DDTHH:mm:ss
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(val)) {
+    return `${val}.000Z`;
+  }
+
+  // If valid ISO or other datetime, parse to standard ISO string
+  const parsed = new Date(val);
+  if (!isNaN(parsed.getTime())) {
+    return parsed.toISOString();
+  }
+
+  return val;
+}
+
 // ---------------------------------------------------------------------------
 // Routes
 // ---------------------------------------------------------------------------
@@ -202,14 +248,18 @@ const measurementsRoutes: FastifyPluginAsync = async (fastify) => {
 
       if (definition_id) { sql += ` AND me.definition_id = ?`; params.push(definition_id); }
       if (from) { sql += ` AND me.recorded_at >= ?`; params.push(from); }
-      if (to) { sql += ` AND me.recorded_at <= ?`; params.push(to); }
+      if (to) {
+        sql += ` AND me.recorded_at <= ?`;
+        params.push(to.length === 10 ? `${to}T23:59:59.999Z` : to);
+      }
 
-      sql += ` ORDER BY me.recorded_at DESC`;
+      sql += ` ORDER BY me.recorded_at DESC, me.created_at DESC`;
 
       const rows = db.prepare(sql).all(...params) as any[];
       const entries = rows.map((r) => ({
         ...r,
         date: (r.recorded_at || '').split('T')[0],
+        recorded_at: r.recorded_at,
         definitionId: r.definition_id,
         definition: {
           id: r.definition_id,
@@ -225,6 +275,7 @@ const measurementsRoutes: FastifyPluginAsync = async (fastify) => {
   /**
    * GET /api/measurements/entries/latest
    * Returns the latest value for each definition available to the profile.
+   * Accurately finds the most recent entry with sub-second precision.
    */
   fastify.get(
     '/api/measurements/entries/latest',
@@ -238,94 +289,111 @@ const measurementsRoutes: FastifyPluginAsync = async (fastify) => {
            FROM measurement_entries me
            JOIN measurement_definitions md ON md.id = me.definition_id
            WHERE me.profile_id = ?
-             AND me.recorded_at = (
-               SELECT MAX(me2.recorded_at)
+             AND me.id = (
+               SELECT me2.id
                FROM measurement_entries me2
                WHERE me2.profile_id = me.profile_id
                  AND me2.definition_id = me.definition_id
+               ORDER BY me2.recorded_at DESC, me2.created_at DESC
+               LIMIT 1
              )
            ORDER BY md.display_order ASC, md.name ASC`,
         )
-        .all(profileId);
+        .all(profileId) as any[];
 
-      return reply.send(latest);
+      const normalized = latest.map((r) => ({
+        ...r,
+        date: (r.recorded_at || '').split('T')[0],
+        recorded_at: r.recorded_at,
+      }));
+
+      return reply.send(normalized);
     },
   );
 
   /**
-   * POST /api/measurements/entries
-   * Batch-create measurement entries.
+   * POST /api/measurements/entries & /api/measurements/entries/batch
+   * Batch-create measurement entries with full timestamp and second precision.
    */
+  const handleBatchCreateEntries = async (request: any, reply: any) => {
+    const result = BatchCreateSchema.safeParse(request.body);
+    if (!result.success) {
+      return reply.code(400).send({ error: 'Validation failed', issues: result.error.issues });
+    }
+
+    const profileId = request.profile!.id;
+    const rawEntries = Array.isArray(result.data) ? result.data : result.data.entries;
+
+    const insertStmt = db.prepare(
+      `INSERT INTO measurement_entries (id, profile_id, definition_id, value, recorded_at, notes)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    );
+
+    const created: any[] = [];
+
+    const insertAll = db.transaction(() => {
+      for (const entry of rawEntries) {
+        const defId = String(entry.definition_id ?? entry.definitionId);
+        const recAt = normalizeRecordedAt(entry.recorded_at, entry.date);
+
+        // Verify the definition belongs to the profile or is a system one
+        const def = db
+          .prepare(
+            `SELECT id FROM measurement_definitions
+             WHERE id = ? AND (is_system = 1 OR profile_id = ?)`,
+          )
+          .get(defId, profileId);
+
+        if (!def) {
+          throw Object.assign(new Error(`Definition not found: ${defId}`), {
+            statusCode: 404,
+          });
+        }
+
+        const id = nanoid();
+        insertStmt.run(
+          id,
+          profileId,
+          defId,
+          entry.value,
+          recAt,
+          entry.notes ?? null,
+        );
+
+        const row = db
+          .prepare('SELECT * FROM measurement_entries WHERE id = ?')
+          .get(id) as any;
+        created.push({
+          ...row,
+          date: (row.recorded_at || '').split('T')[0],
+          recorded_at: row.recorded_at,
+          definitionId: row.definition_id,
+        });
+      }
+    });
+
+    try {
+      insertAll();
+    } catch (err: unknown) {
+      const e = err as { statusCode?: number; message?: string };
+      return reply
+        .code(e.statusCode ?? 500)
+        .send({ error: e.message ?? 'Internal error' });
+    }
+
+    return reply.code(201).send(created);
+  };
+
   fastify.post(
     '/api/measurements/entries',
     { preHandler: requireAuth },
-    async (request, reply) => {
-      const result = BatchCreateSchema.safeParse(request.body);
-      if (!result.success) {
-        return reply.code(400).send({ error: 'Validation failed', issues: result.error.issues });
-      }
+    handleBatchCreateEntries,
+  );
 
-      const profileId = request.profile!.id;
-      const rawEntries = Array.isArray(result.data) ? result.data : result.data.entries;
-
-      const insertStmt = db.prepare(
-        `INSERT INTO measurement_entries (id, profile_id, definition_id, value, recorded_at, notes)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-      );
-
-      const created: any[] = [];
-
-      const insertAll = db.transaction(() => {
-        for (const entry of rawEntries) {
-          const defId = String(entry.definition_id ?? entry.definitionId);
-          const recAt = (entry.recorded_at ?? entry.date ?? new Date().toISOString()).split('T')[0];
-
-          // Verify the definition belongs to the profile or is a system one
-          const def = db
-            .prepare(
-              `SELECT id FROM measurement_definitions
-               WHERE id = ? AND (is_system = 1 OR profile_id = ?)`,
-            )
-            .get(defId, profileId);
-
-          if (!def) {
-            throw Object.assign(new Error(`Definition not found: ${defId}`), {
-              statusCode: 404,
-            });
-          }
-
-          const id = nanoid();
-          insertStmt.run(
-            id,
-            profileId,
-            defId,
-            entry.value,
-            recAt,
-            entry.notes ?? null,
-          );
-
-          const row = db
-            .prepare('SELECT * FROM measurement_entries WHERE id = ?')
-            .get(id) as any;
-          created.push({
-            ...row,
-            date: (row.recorded_at || '').split('T')[0],
-            definitionId: row.definition_id,
-          });
-        }
-      });
-
-      try {
-        insertAll();
-      } catch (err: unknown) {
-        const e = err as { statusCode?: number; message?: string };
-        return reply
-          .code(e.statusCode ?? 500)
-          .send({ error: e.message ?? 'Internal error' });
-      }
-
-      return reply.code(201).send(created);
-    },
+  fastify.post(
+    '/api/measurements/entries/batch',
+    { preHandler: requireAuth },
+    handleBatchCreateEntries,
   );
 
   /**
@@ -352,6 +420,7 @@ const measurementsRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       const updates = result.data;
+      const normalizedRecordedAt = updates.recorded_at ? normalizeRecordedAt(updates.recorded_at) : null;
 
       db.prepare(
         `UPDATE measurement_entries SET
@@ -362,7 +431,7 @@ const measurementsRoutes: FastifyPluginAsync = async (fastify) => {
          WHERE id = ? AND profile_id = ?`,
       ).run(
         updates.value ?? null,
-        updates.recorded_at ?? null,
+        normalizedRecordedAt,
         updates.notes !== undefined ? 1 : null,
         updates.notes ?? null,
         id,

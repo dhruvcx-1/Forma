@@ -188,6 +188,63 @@ const migrations: Record<number, Migration> = {
       );
     `);
   },
+  4: (db) => {
+    // Fasting sessions
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS fasting_sessions (
+        id TEXT PRIMARY KEY,
+        profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+        fast_type TEXT NOT NULL DEFAULT '16:8',
+        target_duration_hours REAL NOT NULL DEFAULT 16,
+        started_at TEXT NOT NULL,
+        ended_at TEXT,
+        status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active', 'completed', 'cancelled')),
+        notes TEXT,
+        mood TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_fasting_profile_status ON fasting_sessions(profile_id, status);
+      CREATE INDEX IF NOT EXISTS idx_fasting_started ON fasting_sessions(profile_id, started_at DESC);
+    `);
+
+    // Nutrition plans
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS nutrition_plans (
+        id TEXT PRIMARY KEY,
+        profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE UNIQUE,
+        diet_type TEXT NOT NULL DEFAULT 'high_protein_low_carb',
+        activity_level TEXT NOT NULL DEFAULT 'moderate',
+        daily_calories REAL NOT NULL,
+        protein_grams REAL NOT NULL,
+        carbs_grams REAL NOT NULL,
+        fat_grams REAL NOT NULL,
+        protein_pct REAL NOT NULL,
+        carbs_pct REAL NOT NULL,
+        fat_pct REAL NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `);
+
+    // Daily nutrition logs
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS daily_nutrition_logs (
+        id TEXT PRIMARY KEY,
+        profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+        date TEXT NOT NULL,
+        calories REAL,
+        protein_grams REAL,
+        carbs_grams REAL,
+        fat_grams REAL,
+        notes TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE(profile_id, date)
+      );
+      CREATE INDEX IF NOT EXISTS idx_nutrition_logs_date ON daily_nutrition_logs(profile_id, date DESC);
+    `);
+  },
 };
 
 // ---------------------------------------------------------------------------

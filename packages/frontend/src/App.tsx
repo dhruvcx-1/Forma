@@ -14,6 +14,8 @@ const Measurements = lazy(() => import('@/pages/Measurements'));
 const MeasurementDetail = lazy(() => import('@/pages/MeasurementDetail'));
 const Goals = lazy(() => import('@/pages/Goals'));
 const Photos = lazy(() => import('@/pages/Photos'));
+const Fasting = lazy(() => import('@/pages/Fasting'));
+const Nutrition = lazy(() => import('@/pages/Nutrition'));
 const Settings = lazy(() => import('@/pages/Settings'));
 const DataIO = lazy(() => import('@/pages/DataIO'));
 const Login = lazy(() => import('@/pages/Login'));
@@ -117,6 +119,8 @@ export default function App() {
                   }
                 >
                   <Route index element={<Dashboard />} />
+                  <Route path="fasting" element={<Fasting />} />
+                  <Route path="nutrition" element={<Nutrition />} />
                   <Route path="log" element={<LogWeight />} />
                   <Route path="measurements" element={<Measurements />} />
                   <Route path="measurements/:id" element={<MeasurementDetail />} />

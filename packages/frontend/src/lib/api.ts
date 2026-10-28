@@ -63,6 +63,20 @@ export const api = {
     return handleResponse<T>(res);
   },
 
+  async patch<T>(path: string, body?: unknown): Promise<T> {
+    const headers: Record<string, string> = {};
+    if (body !== undefined) {
+      headers['Content-Type'] = 'application/json';
+    }
+    const res = await fetch(`${BASE}${path}`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+    return handleResponse<T>(res);
+  },
+
   async delete<T>(path: string): Promise<T> {
     const res = await fetch(`${BASE}${path}`, {
       method: 'DELETE',

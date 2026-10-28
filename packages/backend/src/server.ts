@@ -20,6 +20,8 @@ import bodyCompositionRoutes from './routes/body-composition.js';
 import profileRoutes from './routes/profile.js';
 import publicRoutes from './routes/public.js';
 import adminRoutes from './routes/admin.js';
+import fastingRoutes from './routes/fasting.js';
+import nutritionRoutes from './routes/nutrition.js';
 
 // ---------------------------------------------------------------------------
 // Environment validation
@@ -107,6 +109,8 @@ await fastify.register(bodyCompositionRoutes);
 await fastify.register(profileRoutes);
 await fastify.register(publicRoutes);
 await fastify.register(adminRoutes);
+await fastify.register(fastingRoutes);
+await fastify.register(nutritionRoutes);
 
 // ---------------------------------------------------------------------------
 // Health check
