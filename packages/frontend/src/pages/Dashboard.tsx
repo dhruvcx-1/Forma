@@ -26,6 +26,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { WeightChart } from '@/components/charts/WeightChart';
 import { Sparkline } from '@/components/charts/Sparkline';
 import { EmptyState } from '@/components/shared/EmptyState';
+import { BodyCompositionSection } from '@/components/dashboard/BodyCompositionSection';
 
 const containerVariants = {
   hidden: {},
@@ -308,6 +309,15 @@ export default function Dashboard() {
             <p className="text-xs text-muted-foreground">weight logs</p>
           </div>
         </StatCard>
+      </motion.div>
+
+      {/* Body Composition, BMI & Advanced Metrics */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2, duration: 0.3 }}
+      >
+        <BodyCompositionSection />
       </motion.div>
 
       {/* Weight Chart */}

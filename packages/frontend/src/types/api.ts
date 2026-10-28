@@ -123,27 +123,74 @@ export interface ProgressPhoto {
   created_at?: string;
 }
 
+export interface BmiHistoryPoint {
+  date: string;
+  weightKg: number;
+  bmi: number;
+  category: 'Underweight' | 'Normal weight' | 'Overweight' | 'Obese' | string;
+}
+
+export interface BodyFatHistoryPoint {
+  date: string;
+  value: number;
+  method: 'navy' | 'deurenberg';
+}
+
 export interface BodyCompositionData {
-  bodyFat: {
-    value: number;
-    formula: string;
-    inputs: Record<string, number | null>;
-  } | null;
   bmi: {
     value: number;
-    category: string;
+    category: 'Underweight' | 'Normal weight' | 'Overweight' | 'Obese' | string;
+    healthyWeightRangeKg: { minKg: number; maxKg: number };
+    distanceToNormalKg: number;
+    change7d: number | null;
+    change30d: number | null;
     formula: string;
-    inputs: Record<string, number | null>;
+    inputs: { weightKg: number; heightCm: number };
   } | null;
+  bmiHistory: BmiHistoryPoint[];
+  bodyFat: {
+    navy: { value: number; formula: string } | null;
+    deurenberg: { value: number; formula: string } | null;
+    preferredValue: number;
+    category: 'Athletic' | 'Fitness' | 'Average' | 'High' | string;
+    leanMassKg: number | null;
+    fatMassKg: number | null;
+  } | null;
+  bodyFatHistory: BodyFatHistoryPoint[];
+  metabolism: {
+    bmr: number;
+    tdee: {
+      sedentary: number;
+      light: number;
+      moderate: number;
+      active: number;
+    };
+    waterLiters: number;
+  } | null;
+  ratios: {
+    whtr: { ratio: number; category: string } | null;
+    whr: { ratio: number; category: string } | null;
+    chestToWaist: number | null;
+  };
+  symmetry: {
+    arms: { left: number; right: number; diff: number; balanced: boolean } | null;
+    forearms: { left: number; right: number; diff: number; balanced: boolean } | null;
+    thighs: { left: number; right: number; diff: number; balanced: boolean } | null;
+    calves: { left: number; right: number; diff: number; balanced: boolean } | null;
+  };
   availableData: {
     sex: string | null;
+    ageYears: number;
     heightCm: number | null;
     waistCm: number | null;
     neckCm: number | null;
     hipsCm: number | null;
+    chestCm: number | null;
     latestWeightKg: number | null;
     latestWeightRecordedAt: string | null;
+    unitSystem: 'metric' | 'imperial';
   };
+  nextUnlocks: Array<{ metric: string; missing: string[] }>;
 }
 
 export interface ApiError {
