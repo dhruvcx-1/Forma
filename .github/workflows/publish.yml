@@ -9,9 +9,6 @@ on:
       - feature/public-profiles-and-avatars
     tags:
       - "v*.*.*"
-  schedule:
-    # Nightly build every day at 02:00 UTC
-    - cron: "0 2 * * *"
   workflow_dispatch:
 
 permissions:
@@ -53,8 +50,8 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             # Production latest tag on default branch
             type=raw,value=latest,enable={{is_default_branch}}
-            # Nightly tag for feature branches and scheduled nightly builds
-            type=raw,value=nightly,enable=${{ startsWith(github.ref, 'refs/heads/feature/') || github.event_name == 'schedule' }}
+            # Nightly tag for feature branches (built only when new commits are pushed)
+            type=raw,value=nightly,enable=${{ startsWith(github.ref, 'refs/heads/feature/') }}
             # Branch name tag (e.g. :feature-public-profiles-and-avatars)
             type=ref,event=branch
 
