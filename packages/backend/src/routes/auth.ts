@@ -92,6 +92,27 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/api/setup/status', handleStatus);
 
   /**
+   * GET /api/auth/check-username
+   * Query: { username: string }
+   * Returns whether a username is available.
+   */
+  fastify.get('/api/auth/check-username', async (request, reply) => {
+    const { username } = request.query as { username?: string };
+    if (!username || typeof username !== 'string' || username.trim().length < 3) {
+      return reply.code(400).send({
+        error: 'Username must be at least 3 characters',
+        available: false,
+      });
+    }
+
+    const existing = db
+      .prepare('SELECT id FROM profiles WHERE LOWER(username) = LOWER(?)')
+      .get(username.trim());
+
+    return reply.send({ available: !existing });
+  });
+
+  /**
    * POST /api/auth/setup
    * First-run profile creation. Returns 409 if a profile already exists.
    */
