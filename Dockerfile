@@ -54,6 +54,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN curl -fsSL "https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz" \
     | tar -xJ -C /opt
 ENV PATH="/opt/flutter/bin:${PATH}"
+RUN git config --global --add safe.directory /opt/flutter
 
 WORKDIR /build/packages/flutter_app
 COPY packages/flutter_app/pubspec.yaml packages/flutter_app/pubspec.lock ./
