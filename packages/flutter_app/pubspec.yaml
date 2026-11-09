@@ -1,0 +1,27 @@
+name: forma
+description: Forma health and body progress tracker
+publish_to: none
+version: 1.0.0+1
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  dio: ^5.7.0
+  cookie_jar: ^4.0.8
+  dio_cookie_manager: ^3.1.1
+  path_provider: ^2.1.5
+  go_router: ^14.6.2
+  provider: ^6.1.2
+  fl_chart: ^0.69.2
+  image_picker: ^1.1.2
+  shared_preferences: ^2.3.3
+  file_picker: ^8.1.7
+  file_saver: ^0.5.0
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+flutter:
+  uses-material-design: true

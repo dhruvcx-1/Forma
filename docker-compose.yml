@@ -1,40 +1,55 @@
-version: "3.9"
-
 services:
   forma:
-    image: ${GHCR_IMAGE:-ghcr.io/dhruvcx-1/forma:latest}
+    # Build the Flutter Web frontend and API from this checkout. Do not pull :latest.
+    image: forma:flutter-local
+    build:
+      context: .
+      dockerfile: Dockerfile
+    pull_policy: build
     container_name: forma
-    pull_policy: always
     restart: unless-stopped
-    ports:
-      - "${EXTERNAL_PORT:-8080}:3001"
     environment:
       NODE_ENV: production
-      PORT: 3001
-      EXTERNAL_PORT: ${EXTERNAL_PORT:-8080}
-      # REQUIRED: Set COOKIE_SECRET in your .env file to a random 32+ character string.
-      # Linux/macOS: openssl rand -hex 32
-      # PowerShell:  [System.Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
-      COOKIE_SECRET: ${COOKIE_SECRET}
+      PORT: "3001"
+      EXTERNAL_PORT: "3001"
+      # Set COOKIE_SECRET in .env; do not commit the production signing secret.
+      COOKIE_SECRET: ${COOKIE_SECRET:?Set COOKIE_SECRET in your .env file}
       ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-true}
       DATABASE_PATH: /app/data/body-tracker.db
       PHOTOS_PATH: /app/data/photos
+      CORS_ORIGIN: https://forma.deshmesh.com
+    # Direct host access for clients and API integration: http://HOST:3001/api
+    ports:
+      - "${EXTERNAL_PORT:-3001}:3001"
+    expose:
+      - "3001"
     volumes:
-      # --- Data Storage Options ---
-      # Option 1 (Default): Named Docker volume managed by Docker engine
       - forma_data:/app/data
-
-      # Option 2: Host directory bind-mount (uncomment below & comment out forma_data above)
-      # Grants direct access to body-tracker.db and photos/ directly on your host machine.
-      # Create directory first: mkdir -p ./data/photos
-      # - ./data:/app/data
+    networks:
+      - reverse-proxy
+    security_opt:
+      - no-new-privileges:true
     healthcheck:
-      test: [ "CMD", "wget", "-qO-", "http://127.0.0.1:3001/api/health" ]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3001/api/health"]
       interval: 30s
       timeout: 10s
       start_period: 15s
       retries: 3
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=reverse-proxy
+      - traefik.http.routers.forma.rule=Host(`forma.deshmesh.com`)
+      - traefik.http.routers.forma.entrypoints=websecure
+      - traefik.http.routers.forma.tls=true
+      - traefik.http.routers.forma.tls.certresolver=cloudflare
+      - traefik.http.routers.forma.service=forma
+      - traefik.http.services.forma.loadbalancer.server.port=3001
+
+networks:
+  reverse-proxy:
+    name: reverse-proxy
+    external: true
 
 volumes:
   forma_data:
-    driver: local
+    name: forma_data

@@ -143,6 +143,8 @@ fastify.setErrorHandler((error, request, reply) => {
 // ---------------------------------------------------------------------------
 
 const possibleFrontendDirs = [
+  path.resolve('./packages/flutter_app/build/web'),
+  path.resolve('../flutter_app/build/web'),
   path.resolve('./packages/frontend/dist'),
   path.resolve('../frontend/dist'),
   path.resolve('./dist/frontend'),

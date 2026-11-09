@@ -40,6 +40,15 @@ const UpsertPlanSchema = z.object({
   fat_pct: z.number().min(0).max(100),
 });
 
+const PlanPreviewQuerySchema = z.object({
+  diet_type: z.enum([
+    'high_protein_low_carb', 'keto', 'balanced', 'mediterranean', 'carnivore', 'custom',
+  ]).optional(),
+  activity_level: z.enum([
+    'sedentary', 'light', 'moderate', 'very_active', 'extra_active',
+  ]).optional(),
+});
+
 const UpsertDailyLogSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Must be YYYY-MM-DD'),
   calories: z.number().nonnegative().nullable().optional(),
@@ -130,6 +139,10 @@ const nutritionRoutes: FastifyPluginAsync = async (fastify) => {
     { preHandler: requireAuth },
     async (request, reply) => {
       const profileId = request.profile!.id;
+      const query = PlanPreviewQuerySchema.safeParse(request.query);
+      if (!query.success) {
+        return reply.code(400).send({ error: 'Validation failed', issues: query.error.issues });
+      }
       const userDetails = getUserProfileDetails(profileId);
 
       const savedPlan = db
@@ -142,9 +155,9 @@ const nutritionRoutes: FastifyPluginAsync = async (fastify) => {
         heightCm: userDetails.heightCm,
         sex: userDetails.sex,
         ageYears: userDetails.ageYears,
-        activityLevel: (savedPlan?.activity_level as ActivityLevel) || 'moderate',
+        activityLevel: query.data.activity_level ?? (savedPlan?.activity_level as ActivityLevel | undefined) ?? 'moderate',
         goal: userDetails.goal,
-        dietType: (savedPlan?.diet_type as DietType) || 'high_protein_low_carb',
+        dietType: query.data.diet_type ?? (savedPlan?.diet_type as DietType | undefined) ?? 'high_protein_low_carb',
       });
 
       return reply.send({

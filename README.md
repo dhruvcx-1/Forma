@@ -1,5 +1,4 @@
 <div align="center">
-
 <img src="app.png" alt="Forma Logo" width="84" height="84" style="border-radius: 22px; box-shadow: 0 8px 30px rgba(124, 58, 237, 0.4);">
 
 # Forma — Premium Body Progress Tracker
@@ -19,6 +18,14 @@
 [**📸 View Complete Screenshot Gallery & Intel →**](SCREENSHOTS.md)
 
 </div>
+
+> **Frontend:** the shared Flutter app in `packages/flutter_app` now serves the Docker Web frontend and powers Android builds. The legacy React bundle remains in the image as a safe fallback. Both frontends use the same Fastify API, SQLite database, and existing `/app/data` volume; upgrading does not migrate or delete user data.
+
+## Flutter app (Web and Android)
+
+Install Flutter and Android Studio, then run `flutter pub get` from `packages/flutter_app`. To run Web locally, start the backend with `npm run dev --workspace=packages/backend`, then run `flutter run -d chrome --dart-define=FORMA_API_BASE_URL=http://localhost:3001`. For Android emulator development, run `flutter run --dart-define=FORMA_API_BASE_URL=http://10.0.2.2:3001`. For a remote installation, set `FORMA_API_BASE_URL` to the server URL. Native sessions use a persistent app-private cookie jar; Web uses the browser cookie store with credentialed requests.
+
+Build Web with `flutter build web --release`, Android with `flutter build apk --release`, or an Android App Bundle with `flutter build appbundle --release`. The multi-stage Docker build packages the Flutter Web bundle and serves it from the existing API origin; the React bundle remains available as a fallback if the Flutter output is absent. See [the migration inventory](docs/flutter-migration.md) for API mapping and data-preserving rollout details.
 
 ---
 
@@ -93,10 +100,11 @@
 
 ## 🚀 Quick Start with Docker
 
-Forma is packaged as a lightweight, production-ready container image published to GitHub Container Registry (**GHCR**).
+The deployment compose file builds the Flutter-enabled Web frontend and Fastify API from the checked-out source. It keeps the existing SQLite and photo volume and connects to the existing Traefik network.
 
 ### Prerequisites
 - Docker and Docker Compose
+- An existing Docker network named `reverse-proxy` with Traefik attached
 - Minimum 512 MB RAM
 
 ### Deploy in 2 Steps
@@ -111,11 +119,13 @@ cp .env.example .env
 # Linux/macOS:  openssl rand -hex 32
 # PowerShell:   [System.Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
 
-# 2. Start the container
-docker compose up -d
+# 2. Start the local Flutter-enabled image
+docker compose up --build -d
 ```
 
-Open your browser at **`http://localhost:8080`**. On first launch, you will be guided through setting up your private master profile.
+Open **`https://forma.deshmesh.com`** through Traefik. Port `3001` is also published on the host for direct access. The web app and API share the same origin; check the API with `http://localhost:3001/api/health` (or `https://forma.deshmesh.com/api/health`). On first launch, set up your private master profile.
+
+For local development without Traefik, use `docker compose -f docker-compose.dev.yml up --build`; it serves the app at `http://localhost:8080`.
 
 ---
 
@@ -170,13 +180,12 @@ All runtime options are managed via environment variables in `.env`:
 |---|---|---|
 | `COOKIE_SECRET` | *(required)* | 32+ character random string for signing secure session cookies |
 | `ALLOW_REGISTRATION` | `true` | Enable or disable public user registration at `/register` |
-| `EXTERNAL_PORT` | `8080` | Host port exposed to your local network |
+| `EXTERNAL_PORT` | `3001` | Host port exposed to your local network |
 | `PORT` | `3001` | Internal Node.js Fastify listener port |
 | `DATABASE_PATH` | `/app/data/body-tracker.db` | SQLite database file location inside container |
 | `PHOTOS_PATH` | `/app/data/photos` | Storage directory for progress photos |
 | `NODE_ENV` | `production` | Set to `production` or `development` |
-| `CORS_ORIGIN` | `http://localhost:8080` | Allowed origin for CSRF and API requests |
-| `GHCR_IMAGE` | `ghcr.io/dhruvcx-1/forma:latest` | Container image reference |
+| `CORS_ORIGIN` | — | Retained for compatibility with existing deployment configurations |
 
 ---
 

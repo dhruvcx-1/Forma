@@ -41,7 +41,28 @@ WORKDIR /build/packages/backend
 RUN npm run build
 
 # ============================================================
-# Stage 3: Production runtime
+# Stage 3: Build the shared Flutter Web frontend
+# ============================================================
+# Flutter Web output is architecture-independent, so build it on BuildKit's
+# native build platform and copy the static bundle into each runtime image.
+FROM --platform=$BUILDPLATFORM node:22-bookworm-slim AS flutter-web-builder
+
+ARG FLUTTER_VERSION=3.47.9
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ca-certificates curl git unzip xz-utils zip libglu1-mesa \
+    && rm -rf /var/lib/apt/lists/*
+RUN curl -fsSL "https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz" \
+    | tar -xJ -C /opt
+ENV PATH="/opt/flutter/bin:${PATH}"
+
+WORKDIR /build/packages/flutter_app
+COPY packages/flutter_app/pubspec.yaml packages/flutter_app/pubspec.lock ./
+RUN flutter pub get
+COPY packages/flutter_app ./
+RUN flutter build web --release
+
+# ============================================================
+# Stage 4: Production runtime
 # ============================================================
 FROM node:22-alpine AS runtime
 
@@ -60,6 +81,7 @@ RUN npm ci --omit=dev --ignore-scripts --workspace=packages/backend
 # Copy built artifacts
 COPY --from=backend-builder /build/packages/backend/dist ./packages/backend/dist
 COPY --from=frontend-builder /build/packages/frontend/dist ./packages/frontend/dist
+COPY --from=flutter-web-builder /build/packages/flutter_app/build/web ./packages/flutter_app/build/web
 
 # Create data directories with correct ownership
 RUN mkdir -p /app/data/photos && chown -R forma:forma /app/data

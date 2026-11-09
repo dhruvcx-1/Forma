@@ -73,6 +73,19 @@ describe('Nutrition & Macro Plan API', () => {
     expect(body.calculated.dailyCalories).toBeGreaterThan(1500);
   });
 
+  it('GET /api/nutrition/plan accepts a non-persistent recommendation preview', async () => {
+    const res = await fastify.inject({
+      method: 'GET',
+      url: '/api/nutrition/plan?diet_type=keto&activity_level=light',
+      headers: { cookie: sessionCookie },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().calculated.dietType).toBe('keto');
+    expect(res.json().calculated.activityLevel).toBe('light');
+    expect(res.json().plan).toBeNull();
+  });
+
   it('PUT /api/nutrition/plan saves custom plan and GET returns it', async () => {
     const customPlan = {
       diet_type: 'keto',
