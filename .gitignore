@@ -3,8 +3,8 @@ dist/
 .env
 .env.local
 *.log
-data/
-photos/
+/data/
+/photos/
 *.db
 *.db-shm
 *.db-wal
