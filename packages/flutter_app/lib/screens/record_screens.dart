@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../data/api_client.dart';
 import '../widgets/forma_widgets.dart';
 import 'shared.dart';
+
 class WeightScreen extends StatefulWidget {
   const WeightScreen({super.key, required this.api});
   final ApiClient api;
@@ -696,39 +697,43 @@ class _MeasurementsScreenState extends State<MeasurementsScreen> {
                                 value: 'custom',
                                 child: Text('Add custom location'))
                           ],
-                      child: FilledButton.icon(
-                          onPressed: null,
-                          icon: const Icon(Icons.add),
-                          label: const Text('Add')))),
-              Wrap(spacing: 12, runSpacing: 12, children: [
-                SizedBox(
-                    width: 200,
-                    child: MetricTile(
-                        label: 'Waist / height',
-                        value: ratios['whtr'] == null
-                            ? '—'
-                            : numVal(ratios['whtr']).toStringAsFixed(2),
-                        detail: 'Ratio',
-                        icon: Icons.straighten)),
-                SizedBox(
-                    width: 200,
-                    child: MetricTile(
-                        label: 'Waist / hips',
-                        value: ratios['whr'] == null
-                            ? '—'
-                            : numVal(ratios['whr']).toStringAsFixed(2),
-                        detail: 'Ratio',
-                        icon: Icons.accessibility)),
-                SizedBox(
-                    width: 200,
-                    child: MetricTile(
-                        label: 'Body fat estimate',
-                        value: fat['preferredValue'] == null
-                            ? '—'
-                            : '${numVal(fat['preferredValue']).toStringAsFixed(1)}%',
-                        detail: str(fat['category'], 'Needs more measurements'),
-                        icon: Icons.pie_chart_outline)),
-              ]),
+                      child: const Chip(
+                          avatar: Icon(Icons.add, size: 18),
+                          label: Text('Add')))),
+              LayoutBuilder(builder: (context, box) {
+                final width =
+                    box.maxWidth < 560 ? box.maxWidth : (box.maxWidth - 24) / 3;
+                return Wrap(spacing: 12, runSpacing: 12, children: [
+                  SizedBox(
+                      width: width,
+                      child: MetricTile(
+                          label: 'Waist / height',
+                          value: ratios['whtr'] == null
+                              ? '—'
+                              : numVal(ratios['whtr']).toStringAsFixed(2),
+                          detail: 'Ratio',
+                          icon: Icons.straighten)),
+                  SizedBox(
+                      width: width,
+                      child: MetricTile(
+                          label: 'Waist / hips',
+                          value: ratios['whr'] == null
+                              ? '—'
+                              : numVal(ratios['whr']).toStringAsFixed(2),
+                          detail: 'Ratio',
+                          icon: Icons.accessibility)),
+                  SizedBox(
+                      width: width,
+                      child: MetricTile(
+                          label: 'Body fat estimate',
+                          value: fat['preferredValue'] == null
+                              ? '—'
+                              : '${numVal(fat['preferredValue']).toStringAsFixed(1)}%',
+                          detail:
+                              str(fat['category'], 'Needs more measurements'),
+                          icon: Icons.pie_chart_outline)),
+                ]);
+              }),
               const SizedBox(height: 14),
               SectionCard(child: LayoutBuilder(builder: (context, box) {
                 final body = _BodyMap(
@@ -768,42 +773,50 @@ class _MeasurementsScreenState extends State<MeasurementsScreen> {
                     Text('Body composition',
                         style: Theme.of(context).textTheme.titleLarge),
                     const SizedBox(height: 10),
-                    Wrap(spacing: 12, runSpacing: 12, children: [
-                      SizedBox(
-                          width: 180,
-                          child: MetricTile(
-                              label: 'BMI',
-                              value: bmi['value'] == null
-                                  ? '—'
-                                  : numVal(bmi['value']).toStringAsFixed(1),
-                              detail: str(bmi['category']),
-                              icon: Icons.accessibility)),
-                      SizedBox(
-                          width: 180,
-                          child: MetricTile(
-                              label: 'Lean mass',
-                              value: fat['leanMassKg'] == null
-                                  ? '—'
-                                  : '${numVal(fat['leanMassKg']).toStringAsFixed(1)} kg',
-                              icon: Icons.fitness_center)),
-                      SizedBox(
-                          width: 180,
-                          child: MetricTile(
-                              label: 'Fat mass',
-                              value: fat['fatMassKg'] == null
-                                  ? '—'
-                                  : '${numVal(fat['fatMassKg']).toStringAsFixed(1)} kg',
-                              icon: Icons.pie_chart_outline)),
-                      SizedBox(
-                          width: 180,
-                          child: MetricTile(
-                              label: 'BMR',
-                              value: asJson(comp['metabolism'])['bmr'] == null
-                                  ? '—'
-                                  : '${numVal(asJson(comp['metabolism'])['bmr']).round()} kcal/day',
-                              detail: 'Mifflin–St Jeor estimate',
-                              icon: Icons.local_fire_department_outlined)),
-                    ]),
+                    LayoutBuilder(builder: (context, box) {
+                      final count = box.maxWidth >= 760
+                          ? 4
+                          : box.maxWidth >= 480
+                              ? 2
+                              : 1;
+                      final width = (box.maxWidth - 12 * (count - 1)) / count;
+                      return Wrap(spacing: 12, runSpacing: 12, children: [
+                        SizedBox(
+                            width: width,
+                            child: MetricTile(
+                                label: 'BMI',
+                                value: bmi['value'] == null
+                                    ? '—'
+                                    : numVal(bmi['value']).toStringAsFixed(1),
+                                detail: str(bmi['category']),
+                                icon: Icons.accessibility)),
+                        SizedBox(
+                            width: width,
+                            child: MetricTile(
+                                label: 'Lean mass',
+                                value: fat['leanMassKg'] == null
+                                    ? '—'
+                                    : '${numVal(fat['leanMassKg']).toStringAsFixed(1)} kg',
+                                icon: Icons.fitness_center)),
+                        SizedBox(
+                            width: width,
+                            child: MetricTile(
+                                label: 'Fat mass',
+                                value: fat['fatMassKg'] == null
+                                    ? '—'
+                                    : '${numVal(fat['fatMassKg']).toStringAsFixed(1)} kg',
+                                icon: Icons.pie_chart_outline)),
+                        SizedBox(
+                            width: width,
+                            child: MetricTile(
+                                label: 'BMR',
+                                value: asJson(comp['metabolism'])['bmr'] == null
+                                    ? '—'
+                                    : '${numVal(asJson(comp['metabolism'])['bmr']).round()} kcal/day',
+                                detail: 'Mifflin–St Jeor estimate',
+                                icon: Icons.local_fire_department_outlined)),
+                      ]);
+                    }),
                     const SizedBox(height: 10),
                     Text(
                         'Body fat is an estimate. Forma prefers the US Navy circumference method when the needed measurements are available; otherwise it uses the Deurenberg BMI estimate. BMI is weight divided by height squared.',
@@ -861,7 +874,31 @@ class _MeasurementsScreenState extends State<MeasurementsScreen> {
                             subtitle: Text(item == null
                                 ? 'No record yet'
                                 : '${numVal(item['value']).toStringAsFixed(1)} ${str(def['unit'])} · ${displayDate(item['recorded_at'])}'),
-                            trailing: const Icon(Icons.chevron_right),
+                            trailing:
+                                Row(mainAxisSize: MainAxisSize.min, children: [
+                              if (def['is_system'] != 1 &&
+                                  def['is_system'] != true)
+                                IconButton(
+                                    tooltip: 'Delete custom location',
+                                    icon: const Icon(Icons.delete_outline),
+                                    onPressed: () async {
+                                      if (await confirmAction(
+                                          context,
+                                          'Delete ${str(def['name'])}?',
+                                          'Historical entries for this location will also be deleted.')) {
+                                        try {
+                                          await widget.api.delete(
+                                              '/measurements/definitions/${def['id']}');
+                                          if (mounted) setState(_load);
+                                        } catch (e) {
+                                          if (context.mounted) {
+                                            await showFormaError(context, e);
+                                          }
+                                        }
+                                      }
+                                    }),
+                              const Icon(Icons.chevron_right),
+                            ]),
                             onTap: () =>
                                 context.go('/measurements/${def['id']}'));
                       }),

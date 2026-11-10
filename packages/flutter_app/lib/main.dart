@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:provider/provider.dart';
 
 import 'app.dart';
@@ -8,6 +9,7 @@ import 'state/theme_state.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  usePathUrlStrategy();
   final api = await ApiClient.create();
   runApp(MultiProvider(providers: [
     ChangeNotifierProvider(create: (_) => SessionState(api)..restore()),

@@ -8,23 +8,33 @@ class PageHeading extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.only(bottom: 18),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Expanded(
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                Text(title,
-                    style: Theme.of(context)
-                        .textTheme
-                        .headlineMedium
-                        ?.copyWith(fontWeight: FontWeight.w600)),
-                if (subtitle != null) ...[
-                  const SizedBox(height: 5),
-                  Text(subtitle!, style: Theme.of(context).textTheme.bodyMedium)
-                ],
-              ])),
-          if (trailing != null) trailing!,
-        ]),
+        child: LayoutBuilder(builder: (context, constraints) {
+          final titleBlock =
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(title,
+                style: Theme.of(context)
+                    .textTheme
+                    .headlineMedium
+                    ?.copyWith(fontWeight: FontWeight.w600),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis),
+            if (subtitle != null) ...[
+              const SizedBox(height: 5),
+              Text(subtitle!, style: Theme.of(context).textTheme.bodyMedium),
+            ],
+          ]);
+          if (trailing == null) return titleBlock;
+          if (constraints.maxWidth < 600) {
+            return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [titleBlock, const SizedBox(height: 12), trailing!]);
+          }
+          return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(child: titleBlock),
+            const SizedBox(width: 16),
+            trailing!,
+          ]);
+        }),
       );
 }
 
@@ -52,30 +62,38 @@ class MetricTile extends StatelessWidget {
   final IconData? icon;
   @override
   Widget build(BuildContext context) => SectionCard(
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          if (icon != null) ...[
-            Icon(icon, size: 17, color: Theme.of(context).colorScheme.primary),
-            const SizedBox(width: 7)
-          ],
-          Expanded(
-              child: Text(label, style: Theme.of(context).textTheme.labelLarge))
-        ]),
-        const SizedBox(height: 12),
-        Text(value,
-            style: Theme.of(context)
-                .textTheme
-                .headlineSmall
-                ?.copyWith(fontWeight: FontWeight.w600)),
-        if (detail != null) ...[
-          const SizedBox(height: 3),
-          Text(detail!,
-              style: Theme.of(context).textTheme.bodySmall,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis)
-        ],
-      ]));
+      padding: const EdgeInsets.all(14),
+      child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              if (icon != null) ...[
+                Icon(icon,
+                    size: 17, color: Theme.of(context).colorScheme.primary),
+                const SizedBox(width: 7)
+              ],
+              Expanded(
+                  child: Text(label,
+                      style: Theme.of(context).textTheme.labelLarge))
+            ]),
+            const SizedBox(height: 8),
+            FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(value,
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleLarge
+                        ?.copyWith(fontWeight: FontWeight.w600))),
+            if (detail != null) ...[
+              const SizedBox(height: 3),
+              Text(detail!,
+                  style: Theme.of(context).textTheme.bodySmall,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis)
+            ],
+          ]));
 }
 
 class AsyncContent<T> extends StatelessWidget {

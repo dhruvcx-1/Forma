@@ -14,6 +14,7 @@ import '../state/theme_state.dart';
 import '../widgets/forma_widgets.dart';
 import 'record_screens.dart' show WeightLineChart;
 import 'shared.dart';
+
 class PhotosScreen extends StatefulWidget {
   const PhotosScreen({super.key, required this.api});
   final ApiClient api;
@@ -276,7 +277,7 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  late Future<(Json, Json)> _data;
+  late Future<(Json, Json, List<dynamic>)> _data;
   final c = <String, TextEditingController>{};
   String units = 'metric', sex = 'male';
   bool isPublic = false;
@@ -287,15 +288,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _load();
   }
 
-  void _load() => _data = Future.wait<dynamic>(
-              [widget.api.getMap('/profile'), widget.api.getMap('/settings')])
-          .then((v) {
+  void _load() => _data = Future.wait<dynamic>([
+        widget.api.getMap('/profile'),
+        widget.api.getMap('/settings'),
+        widget.api.getList('/measurements/definitions')
+      ]).then((v) {
         final profile = asJson(v[0]);
         final settings = asJson(v[1]);
         units = str(settings['unit_system'], 'metric');
         sex = str(settings['sex'], 'male');
         isPublic = profile['is_public'] == 1 || profile['is_public'] == true;
-        return (profile, settings);
+        return (profile, settings, asList(v[2]));
       });
   TextEditingController _c(String key, dynamic value) =>
       c.putIfAbsent(key, () => TextEditingController(text: str(value, '')));
@@ -355,12 +358,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => AsyncContent<(Json, Json)>(
+  Widget build(BuildContext context) =>
+      AsyncContent<(Json, Json, List<dynamic>)>(
         future: _data,
         onRetry: () => setState(_load),
         builder: (context, data) {
           final p = data.$1;
           final s = data.$2;
+          final definitions = data.$3;
           final theme = context.watch<ThemeState>();
           return ListView(padding: const EdgeInsets.all(22), children: [
             const PageHeading('Settings',
@@ -372,29 +377,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   Text('Profile',
                       style: Theme.of(context).textTheme.titleLarge),
                   const SizedBox(height: 10),
-                  Row(children: [
-                    CircleAvatar(
-                        radius: 28,
-                        backgroundImage: p['avatar_url'] == null
-                            ? null
-                            : NetworkImage(
-                                Uri.parse(widget.api.dio.options.baseUrl)
-                                    .replace(path: str(p['avatar_url']))
-                                    .toString()),
-                        child: p['avatar_url'] == null
-                            ? const Icon(Icons.person_outline)
-                            : null),
-                    const SizedBox(width: 12),
-                    OutlinedButton.icon(
-                        onPressed: _uploadAvatar,
-                        icon: const Icon(Icons.photo_camera_outlined),
-                        label: const Text('Change avatar')),
-                    if (p['avatar_url'] != null)
-                      IconButton(
-                          tooltip: 'Remove avatar',
-                          onPressed: _removeAvatar,
-                          icon: const Icon(Icons.delete_outline)),
-                  ]),
+                  Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 12,
+                      runSpacing: 8,
+                      children: [
+                        CircleAvatar(
+                            radius: 28,
+                            backgroundImage: p['avatar_url'] == null
+                                ? null
+                                : NetworkImage(
+                                    Uri.parse(widget.api.dio.options.baseUrl)
+                                        .replace(path: str(p['avatar_url']))
+                                        .toString()),
+                            child: p['avatar_url'] == null
+                                ? const Icon(Icons.person_outline)
+                                : null),
+                        OutlinedButton.icon(
+                            onPressed: _uploadAvatar,
+                            icon: const Icon(Icons.photo_camera_outlined),
+                            label: const Text('Change avatar')),
+                        if (p['avatar_url'] != null)
+                          IconButton(
+                              tooltip: 'Remove avatar',
+                              onPressed: _removeAvatar,
+                              icon: const Icon(Icons.delete_outline)),
+                      ]),
                   const SizedBox(height: 10),
                   Text('Username · ${str(p['username'])}'),
                   const SizedBox(height: 8),
@@ -417,6 +425,69 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   FilledButton(
                       onPressed: _saveProfile,
                       child: const Text('Save profile')),
+                  if (p['username'] != null && isPublic) ...[
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                        onPressed: () async {
+                          final link =
+                              '${Uri.base.origin}/@${str(p['username'])}';
+                          await Clipboard.setData(ClipboardData(text: link));
+                          if (context.mounted) {
+                            await snack(context, 'Profile link copied');
+                          }
+                        },
+                        icon: const Icon(Icons.link),
+                        label: const Text('Copy public profile link')),
+                  ],
+                ])),
+            const SizedBox(height: 14),
+            SectionCard(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                  Text('Custom measurement sites',
+                      style: Theme.of(context).textTheme.titleLarge),
+                  const SizedBox(height: 6),
+                  const Text(
+                      'Manage the custom locations you added from Measurements.'),
+                  if (definitions.where((raw) {
+                    final d = asJson(raw);
+                    return d['is_system'] != 1 && d['is_system'] != true;
+                  }).isEmpty)
+                    const Padding(
+                        padding: EdgeInsets.only(top: 10),
+                        child: Text(
+                            'No custom sites yet. Add one from Measurements.')),
+                  for (final raw in definitions.where((raw) {
+                    final d = asJson(raw);
+                    return d['is_system'] != 1 && d['is_system'] != true;
+                  }))
+                    Builder(builder: (context) {
+                      final d = asJson(raw);
+                      return ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(str(d['name'])),
+                          subtitle: Text('Base unit: ${str(d['unit'])}'),
+                          trailing: IconButton(
+                              tooltip: 'Delete custom site',
+                              icon: const Icon(Icons.delete_outline),
+                              onPressed: () async {
+                                if (await confirmAction(
+                                    context,
+                                    'Delete ${str(d['name'])}?',
+                                    'Historical entries for this site will also be deleted.')) {
+                                  try {
+                                    await widget.api.delete(
+                                        '/measurements/definitions/${d['id']}');
+                                    if (mounted) setState(_load);
+                                  } catch (e) {
+                                    if (context.mounted) {
+                                      await showFormaError(context, e);
+                                    }
+                                  }
+                                }
+                              }));
+                    }),
                 ])),
             const SizedBox(height: 14),
             SectionCard(
@@ -511,6 +582,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         onPressed: () => context.go('/admin'),
                         icon: const Icon(Icons.admin_panel_settings_outlined),
                         label: const Text('Administration')),
+                ])),
+            const SizedBox(height: 14),
+            const SectionCard(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                  Text('About Forma',
+                      style:
+                          TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
+                  SizedBox(height: 8),
+                  Text(
+                      'A private, self-hosted tracker for weight, measurements, nutrition, fasting and progress. Your records stay with your Forma server.'),
+                  SizedBox(height: 8),
+                  Text('Flutter edition · Privacy first · No telemetry'),
                 ])),
           ]);
         },

@@ -99,7 +99,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
                           crossAxisCount: wide ? 4 : 2,
-                          childAspectRatio: wide ? 1.3 : 1.35,
+                          mainAxisExtent: wide ? 142 : 138,
                           crossAxisSpacing: 12,
                           mainAxisSpacing: 12,
                           children: metricCards),
