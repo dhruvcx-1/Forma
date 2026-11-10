@@ -563,6 +563,112 @@ class _NutritionScreenState extends State<NutritionScreen> {
                 icon: Icons.opacity_outlined)
           ]),
           const SizedBox(height: 14),
+          SectionCard(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                Row(children: [
+                  Icon(Icons.insights_outlined,
+                      color: Theme.of(context).colorScheme.primary),
+                  const SizedBox(width: 9),
+                  Expanded(
+                      child: Text('Today’s progress',
+                          style: Theme.of(context).textTheme.titleLarge)),
+                  Text(today(), style: Theme.of(context).textTheme.bodySmall)
+                ]),
+                const SizedBox(height: 16),
+                LayoutBuilder(builder: (context, box) {
+                  final columns = box.maxWidth >= 760 ? 2 : 1;
+                  final width = (box.maxWidth - (columns - 1) * 14) / columns;
+                  final macros = <(String, String, String, IconData)>[
+                    (
+                      'Calories',
+                      'calories',
+                      'daily_calories',
+                      Icons.local_fire_department_outlined
+                    ),
+                    (
+                      'Protein',
+                      'protein_grams',
+                      'protein_grams',
+                      Icons.fitness_center
+                    ),
+                    (
+                      'Carbohydrates',
+                      'carbs_grams',
+                      'carbs_grams',
+                      Icons.grain
+                    ),
+                    ('Fat', 'fat_grams', 'fat_grams', Icons.opacity_outlined),
+                  ];
+                  return Wrap(spacing: 14, runSpacing: 14, children: [
+                    for (final item in macros)
+                      SizedBox(
+                          width: width,
+                          child: Builder(builder: (context) {
+                            final consumed = numVal(log[item.$2]);
+                            final goal = numVal(active[item.$3] ??
+                                active[{
+                                  'daily_calories': 'dailyCalories',
+                                  'protein_grams': 'proteinGrams',
+                                  'carbs_grams': 'carbsGrams',
+                                  'fat_grams': 'fatGrams',
+                                }[item.$3]]);
+                            final ratio = goal <= 0
+                                ? 0.0
+                                : (consumed / goal).clamp(0.0, 1.0).toDouble();
+                            return Container(
+                                padding: const EdgeInsets.all(14),
+                                decoration: BoxDecoration(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .surfaceContainerLow,
+                                    borderRadius: BorderRadius.circular(16)),
+                                child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(children: [
+                                        Icon(item.$4,
+                                            size: 18,
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .primary),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                            child: Text(item.$1,
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .titleSmall
+                                                    ?.copyWith(
+                                                        fontWeight:
+                                                            FontWeight.w700))),
+                                        Text(
+                                            '${consumed.round()} / ${goal.round()} ${item.$2 == 'calories' ? 'kcal' : 'g'}',
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .labelMedium)
+                                      ]),
+                                      const SizedBox(height: 10),
+                                      ClipRRect(
+                                          borderRadius:
+                                              BorderRadius.circular(99),
+                                          child: LinearProgressIndicator(
+                                              value: ratio, minHeight: 8)),
+                                      const SizedBox(height: 5),
+                                      Text(
+                                          goal > 0
+                                              ? '${(ratio * 100).round()}% of daily target'
+                                              : 'Set a target to track progress',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall)
+                                    ]));
+                          }))
+                  ]);
+                })
+              ])),
+          const SizedBox(height: 14),
           if (diet == 'custom')
             SectionCard(
                 child: Column(
@@ -658,22 +764,43 @@ class _NutritionScreenState extends State<NutritionScreen> {
                   children: [
                 Text('Today’s intake · ${today()}',
                     style: Theme.of(context).textTheme.titleLarge),
-                const SizedBox(height: 10),
-                for (final f in [
-                  ('calories', 'Calories (kcal)'),
-                  ('protein_grams', 'Protein (g)'),
-                  ('carbs_grams', 'Carbohydrates (g)'),
-                  ('fat_grams', 'Fat (g)')
-                ])
-                  Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: TextField(
-                          controller: _field(f.$1, log[f.$1]),
-                          keyboardType: TextInputType.number,
-                          decoration: InputDecoration(labelText: f.$2))),
+                const SizedBox(height: 6),
+                Text(
+                    'Record your totals for the day. You can update these values anytime.',
+                    style: Theme.of(context).textTheme.bodySmall),
+                const SizedBox(height: 14),
+                LayoutBuilder(builder: (context, box) {
+                  final columns = box.maxWidth >= 900
+                      ? 4
+                      : box.maxWidth >= 560
+                          ? 2
+                          : 1;
+                  final width = (box.maxWidth - (columns - 1) * 12) / columns;
+                  return Wrap(spacing: 12, runSpacing: 12, children: [
+                    for (final f in [
+                      ('calories', 'Calories', 'kcal'),
+                      ('protein_grams', 'Protein', 'g'),
+                      ('carbs_grams', 'Carbohydrates', 'g'),
+                      ('fat_grams', 'Fat', 'g')
+                    ])
+                      SizedBox(
+                          width: width,
+                          child: TextField(
+                              controller: _field(f.$1, log[f.$1]),
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                      decimal: true),
+                              decoration: InputDecoration(
+                                  labelText: f.$2, suffixText: f.$3)))
+                  ]);
+                }),
+                const SizedBox(height: 12),
                 TextField(
                     controller: _field('notes', log['notes']),
-                    decoration: const InputDecoration(labelText: 'Notes')),
+                    minLines: 2,
+                    maxLines: 4,
+                    decoration: const InputDecoration(
+                        labelText: 'Notes', alignLabelWithHint: true)),
                 const SizedBox(height: 12),
                 FilledButton(
                     onPressed: _saveLog,
@@ -785,67 +912,269 @@ class _FastingScreenState extends State<FastingScreen> {
         final target = numVal(active['target_duration_hours'], 16);
         final p =
             target <= 0 ? 0.0 : (hours / target).clamp(0.0, 1.0).toDouble();
-        final stage = hours < 4
-            ? 'Fed and anabolic'
-            : hours < 8
-                ? 'Post-absorptive'
-                : hours < 12
-                    ? 'Early fat burning'
-                    : hours < 16
-                        ? 'Metabolic switch'
-                        : hours < 24
-                            ? 'Deep ketosis'
-                            : hours < 48
-                                ? 'Peak autophagy'
-                                : 'Extended fast';
+        const stages = <(double, double, String, String, String, List<String>)>[
+          (
+            0,
+            4,
+            'Fed & anabolic state',
+            'Digestion and nutrient absorption',
+            'Your body is processing the previous meal; blood glucose and insulin respond to the nutrients consumed.',
+            [
+              'Nutrients are absorbed and used by tissues',
+              'Some glucose is stored as glycogen',
+              'Digestion is still active'
+            ]
+          ),
+          (
+            4,
+            8,
+            'Post-absorptive state',
+            'Blood sugar returns toward baseline',
+            'As digestion winds down, the body draws on stored fuels to help maintain blood glucose.',
+            [
+              'Insulin levels generally fall after a meal',
+              'The liver releases stored glucose as needed',
+              'Fuel use shifts gradually between sources'
+            ]
+          ),
+          (
+            8,
+            12,
+            'Early fat use',
+            'Stored fuels contribute more energy',
+            'With time since the last meal, the body increasingly uses stored energy. The timing varies by person and meal.',
+            [
+              'Liver glycogen continues to be used',
+              'Fatty acids may contribute more fuel',
+              'Hydration and how you feel still matter'
+            ]
+          ),
+          (
+            12,
+            16,
+            'The metabolic transition',
+            'A gradual shift in fuel use',
+            'This part of a fast is often described as a transition toward greater fat oxidation. It is not a precise switch and varies between people.',
+            [
+              'The body continues to draw on stored fuels',
+              'Ketone production may begin to rise',
+              'Responses depend on activity and prior meals'
+            ]
+          ),
+          (
+            16,
+            24,
+            'Longer fasting window',
+            'Individual responses vary',
+            'Longer fasts affect people differently. This tracker marks elapsed time; it cannot measure ketones or cellular processes.',
+            [
+              'Fuel use continues to adapt',
+              'Energy and concentration can vary',
+              'Stop if you feel unwell'
+            ]
+          ),
+          (
+            24,
+            48,
+            'Extended fast',
+            'Use care with longer fasts',
+            'Fasts extending beyond a day can carry health risks. Consider medical guidance, especially with health conditions or medication.',
+            [
+              'Stay attentive to symptoms',
+              'Do not treat the timer as a health assessment',
+              'Seek medical advice when unsure'
+            ]
+          ),
+          (
+            48,
+            168,
+            'Prolonged fast',
+            'Medical guidance is recommended',
+            'Prolonged fasting is not appropriate for everyone. Consult a healthcare professional before attempting it.',
+            [
+              'The app only reports elapsed time',
+              'End the fast if you feel unwell',
+              'Get professional guidance'
+            ]
+          ),
+        ];
+        var stageIndex = stages.lastIndexWhere((s) => hours >= s.$1);
+        if (stageIndex < 0) stageIndex = 0;
+        if (stageIndex >= stages.length) stageIndex = stages.length - 1;
+        final currentStage = stages[stageIndex];
+        final nextStage =
+            stageIndex + 1 < stages.length ? stages[stageIndex + 1] : null;
+        final stageProgress =
+            ((hours - currentStage.$1) / (currentStage.$2 - currentStage.$1))
+                .clamp(0.0, 1.0)
+                .toDouble();
         return ListView(padding: const EdgeInsets.all(22), children: [
           PageHeading('Fasting',
               subtitle:
                   'A live timer and a clear view of your fasting history.'),
           SectionCard(
-              child: Column(children: [
-            if (active.isNotEmpty) ...[
-              Text('FAST IN PROGRESS',
-                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      letterSpacing: 1.5,
-                      color: Theme.of(context).colorScheme.primary)),
-              const SizedBox(height: 18),
-              Text(_duration(hours),
-                  style: Theme.of(context).textTheme.displayMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      fontFeatures: [const FontFeature.tabularFigures()])),
-              const SizedBox(height: 8),
-              Text(
-                  '$stage · ${hours.toStringAsFixed(1)} of ${target.toStringAsFixed(0)} hours'),
-              const SizedBox(height: 18),
-              LinearProgressIndicator(
-                  value: p,
-                  minHeight: 8,
-                  borderRadius: BorderRadius.circular(6)),
-              const SizedBox(height: 18),
-              FilledButton.icon(
-                  onPressed: _end,
-                  icon: const Icon(Icons.stop_circle_outlined),
-                  label: const Text('End fast'))
-            ] else ...[
-              Text('Start a fast',
-                  style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                  initialValue: duration,
-                  decoration: const InputDecoration(labelText: 'Schedule'),
-                  items: const ['12', '14', '16', '18', '20', '24', '36', '48']
-                      .map((v) =>
-                          DropdownMenuItem(value: v, child: Text('$v hours')))
-                      .toList(),
-                  onChanged: (v) => setState(() => duration = v ?? '16')),
-              const SizedBox(height: 14),
-              FilledButton.icon(
-                  onPressed: _start,
-                  icon: const Icon(Icons.play_arrow),
-                  label: const Text('Start fasting timer'))
-            ]
-          ])),
+              padding: const EdgeInsets.all(22),
+              child: LayoutBuilder(builder: (context, constraints) {
+                final compact = constraints.maxWidth < 720;
+                final timer = Column(mainAxisSize: MainAxisSize.min, children: [
+                  if (active.isNotEmpty) ...[
+                    SizedBox(
+                        width: 220,
+                        height: 220,
+                        child: Stack(alignment: Alignment.center, children: [
+                          SizedBox.expand(
+                              child: CircularProgressIndicator(
+                                  value: p,
+                                  strokeWidth: 13,
+                                  backgroundColor: Theme.of(context)
+                                      .colorScheme
+                                      .surfaceContainerHighest)),
+                          Column(mainAxisSize: MainAxisSize.min, children: [
+                            Text(currentStage.$3.toUpperCase(),
+                                textAlign: TextAlign.center,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .labelSmall
+                                    ?.copyWith(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .primary,
+                                        fontWeight: FontWeight.w800)),
+                            const SizedBox(height: 8),
+                            Text(_duration(hours),
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .headlineMedium
+                                    ?.copyWith(
+                                        fontWeight: FontWeight.w700,
+                                        fontFeatures: [
+                                      const FontFeature.tabularFigures()
+                                    ])),
+                            Text(
+                                '${(target - hours).clamp(0, target).toStringAsFixed(1)} h to target',
+                                style: Theme.of(context).textTheme.bodySmall),
+                          ])
+                        ])),
+                    FilledButton.icon(
+                        onPressed: _end,
+                        icon: const Icon(Icons.stop_circle_outlined),
+                        label: const Text('End fast'))
+                  ] else ...[
+                    Text('Start a fast',
+                        style: Theme.of(context).textTheme.titleLarge),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                        initialValue: duration,
+                        decoration:
+                            const InputDecoration(labelText: 'Schedule'),
+                        items: const [
+                          '12',
+                          '14',
+                          '16',
+                          '18',
+                          '20',
+                          '24',
+                          '36',
+                          '48'
+                        ]
+                            .map((v) => DropdownMenuItem(
+                                value: v, child: Text('$v hours')))
+                            .toList(),
+                        onChanged: (v) => setState(() => duration = v ?? '16')),
+                    const SizedBox(height: 14),
+                    FilledButton.icon(
+                        onPressed: _start,
+                        icon: const Icon(Icons.play_arrow),
+                        label: const Text('Start fasting timer'))
+                  ]
+                ]);
+                final biology = Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                          active.isNotEmpty
+                              ? 'CURRENT FASTING STAGE'
+                              : 'YOUR FASTING PLAN',
+                          style: Theme.of(context)
+                              .textTheme
+                              .labelMedium
+                              ?.copyWith(
+                                  color: Theme.of(context).colorScheme.primary,
+                                  letterSpacing: 1.1,
+                                  fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 7),
+                      Text(
+                          active.isNotEmpty
+                              ? currentStage.$3
+                              : 'Choose a schedule that works for you',
+                          style: Theme.of(context)
+                              .textTheme
+                              .headlineSmall
+                              ?.copyWith(fontWeight: FontWeight.w700)),
+                      Text(
+                          active.isNotEmpty
+                              ? currentStage.$4
+                              : 'Start the timer when your fasting window begins.',
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleSmall
+                              ?.copyWith(
+                                  color:
+                                      Theme.of(context).colorScheme.primary)),
+                      if (active.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        Text(currentStage.$5,
+                            style: Theme.of(context).textTheme.bodyMedium),
+                        const SizedBox(height: 14),
+                        Text('What to keep in mind',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleSmall
+                                ?.copyWith(fontWeight: FontWeight.w700)),
+                        const SizedBox(height: 6),
+                        for (final item in currentStage.$6)
+                          Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 3),
+                              child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Icon(Icons.circle,
+                                        size: 7,
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .primary),
+                                    const SizedBox(width: 9),
+                                    Expanded(
+                                        child: Text(item,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodySmall))
+                                  ])),
+                        const SizedBox(height: 8),
+                        ClipRRect(
+                            borderRadius: BorderRadius.circular(99),
+                            child: LinearProgressIndicator(
+                                value: stageProgress, minHeight: 6)),
+                        if (nextStage != null)
+                          Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Text(
+                                  'Next stage in ${((nextStage.$1 - hours).clamp(0, 999)).toStringAsFixed(1)} hours',
+                                  style:
+                                      Theme.of(context).textTheme.labelLarge)),
+                      ]
+                    ]);
+                return compact
+                    ? Column(
+                        children: [timer, const SizedBox(height: 20), biology])
+                    : Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                            SizedBox(width: 250, child: timer),
+                            const SizedBox(width: 24),
+                            Expanded(child: biology)
+                          ]);
+              })),
           const SizedBox(height: 14),
           MetricGrid(children: [
             MetricTile(
@@ -915,30 +1244,81 @@ class _FastingScreenState extends State<FastingScreen> {
                 child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                  Text('Fasting stages',
+                  Text('Fasting timeline',
                       style: Theme.of(context).textTheme.titleLarge),
-                  const SizedBox(height: 8),
-                  for (final stageRow in [
-                    ('0–4 h', 'Fed and anabolic'),
-                    ('4–8 h', 'Post-absorptive'),
-                    ('8–12 h', 'Early fat burning'),
-                    ('12–16 h', 'Metabolic switch'),
-                    ('16–24 h', 'Deep ketosis'),
-                    ('24–48 h', 'Peak autophagy'),
-                    ('48+ h', 'Extended fast')
-                  ])
-                    ListTile(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        leading: Icon(
-                            stage == stageRow.$2
-                                ? Icons.radio_button_checked
-                                : Icons.radio_button_unchecked,
-                            color: stage == stageRow.$2
-                                ? Theme.of(context).colorScheme.primary
-                                : null),
-                        title: Text(stageRow.$2),
-                        trailing: Text(stageRow.$1)),
+                  const SizedBox(height: 4),
+                  Text(
+                      'Illustrative milestones only; individual responses vary.',
+                      style: Theme.of(context).textTheme.bodySmall),
+                  const SizedBox(height: 14),
+                  LayoutBuilder(builder: (context, box) {
+                    final columns = box.maxWidth >= 1000
+                        ? 4
+                        : box.maxWidth >= 600
+                            ? 2
+                            : 1;
+                    final width = (box.maxWidth - (columns - 1) * 10) / columns;
+                    return Wrap(spacing: 10, runSpacing: 10, children: [
+                      for (var i = 0; i < stages.length; i++)
+                        SizedBox(
+                            width: width,
+                            child: Container(
+                                padding: const EdgeInsets.all(14),
+                                decoration: BoxDecoration(
+                                    color: i == stageIndex
+                                        ? Theme.of(context)
+                                            .colorScheme
+                                            .primaryContainer
+                                            .withValues(alpha: .45)
+                                        : Theme.of(context)
+                                            .colorScheme
+                                            .surfaceContainerLow,
+                                    border: Border.all(
+                                        color: i == stageIndex
+                                            ? Theme.of(context)
+                                                .colorScheme
+                                                .primary
+                                            : Theme.of(context)
+                                                .colorScheme
+                                                .outlineVariant),
+                                    borderRadius: BorderRadius.circular(16)),
+                                child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                          '${stages[i].$1.toInt()}–${stages[i].$2.toInt()} h',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .labelMedium
+                                              ?.copyWith(
+                                                  fontWeight: FontWeight.w700)),
+                                      const SizedBox(height: 6),
+                                      Text(stages[i].$3,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .titleSmall
+                                              ?.copyWith(
+                                                  fontWeight: FontWeight.w700)),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                          i < stageIndex
+                                              ? 'Elapsed'
+                                              : i == stageIndex
+                                                  ? 'Current'
+                                                  : 'Upcoming',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .labelSmall
+                                              ?.copyWith(
+                                                  color: i == stageIndex
+                                                      ? Theme.of(context)
+                                                          .colorScheme
+                                                          .primary
+                                                      : null))
+                                    ]))),
+                    ]);
+                  }),
                 ])),
           SectionCard(
               child: FutureBuilder<Json>(

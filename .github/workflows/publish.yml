@@ -76,6 +76,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    env:
+      FORMA_PERSONAL_API_BASE_URL: ${{ secrets.FORMA_PERSONAL_API_BASE_URL }}
 
     steps:
       - name: Checkout repository
@@ -101,20 +103,30 @@ jobs:
         working-directory: packages/flutter_app
         run: flutter pub get --enforce-lockfile
 
-      - name: Build installable Android APK
+      - name: Build host-configurable Android APK
         working-directory: packages/flutter_app
-        run: flutter build apk --release --dart-define=FORMA_API_BASE_URL=https://forma.deshmesh.com
+        run: flutter build apk --release
 
       - name: Name APK
         working-directory: packages/flutter_app
-        run: cp build/app/outputs/flutter-apk/app-release.apk "Forma-Android-${GITHUB_SHA::7}.apk"
+        run: cp build/app/outputs/flutter-apk/app-release.apk "Forma-Android-Universal-${GITHUB_SHA::7}.apk"
+
+      - name: Build personal Android APK (optional)
+        if: env.FORMA_PERSONAL_API_BASE_URL != ''
+        working-directory: packages/flutter_app
+        run: flutter build apk --release --dart-define=FORMA_API_BASE_URL="$FORMA_PERSONAL_API_BASE_URL"
+
+      - name: Name personal APK
+        if: env.FORMA_PERSONAL_API_BASE_URL != ''
+        working-directory: packages/flutter_app
+        run: cp build/app/outputs/flutter-apk/app-release.apk "Forma-Android-Personal-${GITHUB_SHA::7}.apk"
 
       - name: Verify APK output
         working-directory: packages/flutter_app
         run: |
-          test -s "Forma-Android-${GITHUB_SHA::7}.apk"
-          file "Forma-Android-${GITHUB_SHA::7}.apk"
-          sha256sum "Forma-Android-${GITHUB_SHA::7}.apk"
+          test -s "Forma-Android-Universal-${GITHUB_SHA::7}.apk"
+          file Forma-Android-*.apk
+          sha256sum Forma-Android-*.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -146,7 +158,7 @@ jobs:
           prerelease: ${{ github.ref == 'refs/heads/master' }}
           make_latest: false
           overwrite_files: true
-          files: Forma-Android-*.apk
+          files: Forma-Android-Universal-*.apk
           fail_on_unmatched_files: true
 
   build-and-push:

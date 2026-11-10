@@ -8,13 +8,14 @@ class ApiClient {
   ApiClient._(this.dio);
   final Dio dio;
 
-  static Future<ApiClient> create() async {
+  static Future<ApiClient> create({String? baseUrl}) async {
     const configured = String.fromEnvironment('FORMA_API_BASE_URL');
-    final baseUrl = configured.isNotEmpty
+    final selectedBaseUrl = configured.isNotEmpty
         ? configured
-        : (kIsWeb ? Uri.base.origin : 'http://10.0.2.2:3001');
+        : (baseUrl ?? (kIsWeb ? Uri.base.origin : 'http://10.0.2.2:3001'));
+    final normalized = selectedBaseUrl.trim().replaceFirst(RegExp(r'/+$'), '');
     final dio = Dio(BaseOptions(
-      baseUrl: '$baseUrl/api',
+      baseUrl: normalized.endsWith('/api') ? normalized : '$normalized/api',
       connectTimeout: const Duration(seconds: 12),
       receiveTimeout: const Duration(seconds: 20),
       headers: {'Accept': 'application/json'},

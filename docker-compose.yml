@@ -1,11 +1,8 @@
 services:
   forma:
-    # Build the Flutter Web frontend and API from this checkout. Do not pull :latest.
-    image: forma:flutter-local
-    build:
-      context: .
-      dockerfile: Dockerfile
-    pull_policy: build
+    # Published multi-architecture image; override FORMA_IMAGE to pin a version.
+    image: ${FORMA_IMAGE:-ghcr.io/dhruvcx-1/forma:latest}
+    pull_policy: always
     container_name: forma
     restart: unless-stopped
     environment:
@@ -17,7 +14,7 @@ services:
       ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-true}
       DATABASE_PATH: /app/data/body-tracker.db
       PHOTOS_PATH: /app/data/photos
-      CORS_ORIGIN: https://forma.deshmesh.com
+      CORS_ORIGIN: ${PUBLIC_URL:-}
     # Direct host access for clients and API integration: http://HOST:3001/api
     ports:
       - "${EXTERNAL_PORT:-3001}:3001"
@@ -38,7 +35,7 @@ services:
     labels:
       - traefik.enable=true
       - traefik.docker.network=reverse-proxy
-      - traefik.http.routers.forma.rule=Host(`forma.deshmesh.com`)
+      - traefik.http.routers.forma.rule=Host(`${FORMA_DOMAIN:?Set FORMA_DOMAIN in your .env file}`)
       - traefik.http.routers.forma.entrypoints=websecure
       - traefik.http.routers.forma.tls=true
       - traefik.http.routers.forma.tls.certresolver=cloudflare

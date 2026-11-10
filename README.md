@@ -19,11 +19,11 @@
 
 </div>
 
-> **Frontend:** the shared Flutter app in `packages/flutter_app` now serves the Docker Web frontend and powers Android builds. The legacy React bundle remains in the image as a safe fallback. Both frontends use the same Fastify API, SQLite database, and existing `/app/data` volume; upgrading does not migrate or delete user data.
+> **Frontend:** the shared Flutter app in `packages/flutter_app` serves the Docker Web frontend and powers Android builds. The project publishes a host-configurable Android APK and a multi-architecture Docker image. Each self-hosted Web install connects to the API at its own origin. The app, API, SQLite database, and `/app/data` volume remain together; upgrades do not migrate or delete user data.
 
 ## Flutter app (Web and Android)
 
-Install Flutter and Android Studio, then run `flutter pub get` from `packages/flutter_app`. To run Web locally, start the backend with `npm run dev --workspace=packages/backend`, then run `flutter run -d chrome --dart-define=FORMA_API_BASE_URL=http://localhost:3001`. For Android emulator development, run `flutter run --dart-define=FORMA_API_BASE_URL=http://10.0.2.2:3001`. For a remote installation, set `FORMA_API_BASE_URL` to the server URL. Native sessions use a persistent app-private cookie jar; Web uses the browser cookie store with credentialed requests.
+Install Flutter and Android Studio, then run `flutter pub get` from `packages/flutter_app`. To run Web locally, start the backend with `npm run dev --workspace=packages/backend`, then run `flutter run -d chrome --dart-define=FORMA_API_BASE_URL=http://localhost:3001`. For Android emulator development, run `flutter run --dart-define=FORMA_API_BASE_URL=http://10.0.2.2:3001`. A normal Android APK contains no server address: on first launch, enter the URL of your own Forma instance, which is saved locally on the device. To make a personal APK with a default server, build with `--dart-define=FORMA_API_BASE_URL=https://your-host.example`. Native sessions use a persistent app-private cookie jar; Web uses the browser cookie store with credentialed requests.
 
 Build Web with `flutter build web --release`, Android with `flutter build apk --release`, or an Android App Bundle with `flutter build appbundle --release`. The multi-stage Docker build packages the Flutter Web bundle and serves it from the existing API origin; the React bundle remains available as a fallback if the Flutter output is absent. See [the migration inventory](docs/flutter-migration.md) for API mapping and data-preserving rollout details.
 
@@ -100,7 +100,7 @@ Build Web with `flutter build web --release`, Android with `flutter build apk --
 
 ## 🚀 Quick Start with Docker
 
-The deployment compose file builds the Flutter-enabled Web frontend and Fastify API from the checked-out source. It keeps the existing SQLite and photo volume and connects to the existing Traefik network.
+The deployment compose file pulls the Flutter-enabled Web frontend and Fastify API image published to GitHub Container Registry. It keeps the SQLite and photo volume and connects to the existing Traefik network.
 
 ### Prerequisites
 - Docker and Docker Compose
@@ -115,17 +115,18 @@ curl -sO https://raw.githubusercontent.com/dhruvcx-1/Forma/master/docker-compose
 curl -sO https://raw.githubusercontent.com/dhruvcx-1/Forma/master/.env.example
 cp .env.example .env
 
-# Edit .env and set COOKIE_SECRET to a random 32+ character string:
+# Edit .env: set FORMA_DOMAIN and PUBLIC_URL to your own domain, and set
+# COOKIE_SECRET to a random 32+ character string:
 # Linux/macOS:  openssl rand -hex 32
 # PowerShell:   [System.Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
 
-# 2. Start the local Flutter-enabled image
-docker compose up --build -d
+# 2. Pull and start the published Flutter-enabled image
+docker compose up -d
 ```
 
-Open **`https://forma.deshmesh.com`** through Traefik. Port `3001` is also published on the host for direct access. The web app and API share the same origin; check the API with `http://localhost:3001/api/health` (or `https://forma.deshmesh.com/api/health`). On first launch, set up your private master profile.
+Set `FORMA_DOMAIN` and `PUBLIC_URL` in `.env` to your own domain and public origin, and set `COOKIE_SECRET` to a random secret. Then open your chosen HTTPS domain through Traefik. Port `3001` is also published on the host for direct access; check the API at `http://localhost:3001/api/health` or `https://your-host.example/api/health`. On first launch, set up your instance's master profile. For direct host access without Traefik, remove the Traefik labels and network from the compose file, then use the machine's address and published port.
 
-For local development without Traefik, use `docker compose -f docker-compose.dev.yml up --build`; it serves the app at `http://localhost:8080`.
+For local development from a cloned repository, use `docker compose -f docker-compose.dev.yml up --build`; it builds from source and serves the app at `http://localhost:8080`.
 
 ---
 
