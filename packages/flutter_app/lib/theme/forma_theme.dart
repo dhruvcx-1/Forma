@@ -2,18 +2,18 @@ import 'package:flutter/material.dart';
 
 abstract final class FormaTheme {
   static const ink = Color(0xff17221e);
-  static const green = Color(0xff367a5d);
+  static const violet = Color(0xff8b3dff);
   static const canvas = Color(0xfff5f6f2);
 
-  static ThemeData get light => _make(Brightness.light, canvas, ink, green,
+  static ThemeData get light => _make(Brightness.light, canvas, ink, violet,
       const Color(0xffffffff), const Color(0xff737d75));
   static ThemeData get dark => _make(
       Brightness.dark,
-      const Color(0xff141916),
-      const Color(0xffeef3ee),
-      const Color(0xff8bc8a8),
-      const Color(0xff202923),
-      const Color(0xffa2aea5));
+      const Color(0xff0b0c0f),
+      const Color(0xffeff0f5),
+      const Color(0xffa46bff),
+      const Color(0xff141519),
+      const Color(0xff92939e));
 
   static ThemeData _make(Brightness brightness, Color bg, Color fg,
       Color accent, Color surface, Color muted) {

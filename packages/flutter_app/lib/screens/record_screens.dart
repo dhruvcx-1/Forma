@@ -351,10 +351,12 @@ class _BodyMap extends StatelessWidget {
   const _BodyMap(
       {required this.definitions,
       required this.latest,
-      required this.onSelect});
+      required this.onSelect,
+      required this.selectedSlug});
   final List<dynamic> definitions;
   final Map<String, dynamic> latest;
   final ValueChanged<Json> onSelect;
+  final String? selectedSlug;
 
   @override
   Widget build(BuildContext context) {
@@ -387,6 +389,7 @@ class _BodyMap extends StatelessWidget {
                         if (bySlug[h.slug] case final def?)
                           if (latest[str(def['id'])] != null) h.slug
                     },
+                    selected: selectedSlug,
                   )),
             )));
   }
@@ -394,9 +397,13 @@ class _BodyMap extends StatelessWidget {
 
 class _BodyPainter extends CustomPainter {
   const _BodyPainter(
-      {required this.color, required this.dot, required this.recorded});
+      {required this.color,
+      required this.dot,
+      required this.recorded,
+      required this.selected});
   final Color color, dot;
   final Set<String> recorded;
+  final String? selected;
   @override
   void paint(Canvas canvas, Size size) {
     final fill = Paint()..color = color;
@@ -463,12 +470,17 @@ class _BodyPainter extends CustomPainter {
     canvas.drawOval(Rect.fromLTWH(w * .50, h * .91, w * .19, h * .055), fill);
     for (final point in _bodyHotspots) {
       final center = Offset(w * point.x, h * point.y);
+      final isSelected = point.slug == selected;
+      if (isSelected) {
+        canvas.drawCircle(
+            center, 13, Paint()..color = dot.withValues(alpha: .20));
+      }
       canvas.drawCircle(center, 8, Paint()..color = dot.withValues(alpha: .2));
-      canvas.drawCircle(center, 4.2,
+      canvas.drawCircle(center, isSelected ? 6.4 : 4.2,
           Paint()..color = recorded.contains(point.slug) ? dot : Colors.white);
       canvas.drawCircle(
           center,
-          4.2,
+          isSelected ? 6.4 : 4.2,
           Paint()
             ..style = PaintingStyle.stroke
             ..strokeWidth = 1.5
@@ -478,7 +490,10 @@ class _BodyPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _BodyPainter old) =>
-      old.color != color || old.dot != dot || old.recorded != recorded;
+      old.color != color ||
+      old.dot != dot ||
+      old.recorded != recorded ||
+      old.selected != selected;
 }
 
 class MeasurementsScreen extends StatefulWidget {
@@ -490,10 +505,20 @@ class MeasurementsScreen extends StatefulWidget {
 
 class _MeasurementsScreenState extends State<MeasurementsScreen> {
   late Future<(List<dynamic>, List<dynamic>, Json)> _data;
+  String? selectedId;
+  String view = 'studio';
+  String historyQuery = '';
+  final quickValue = TextEditingController();
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    quickValue.dispose();
+    super.dispose();
   }
 
   void _load() => _data = Future.wait<dynamic>([
@@ -501,6 +526,30 @@ class _MeasurementsScreenState extends State<MeasurementsScreen> {
         widget.api.getList('/measurements/entries'),
         widget.api.getMap('/body-composition')
       ]).then((v) => (asList(v[0]), asList(v[1]), asJson(v[2])));
+
+  Future<void> _saveQuick(Json definition) async {
+    final value = double.tryParse(quickValue.text.trim());
+    if (value == null || value <= 0) {
+      await snack(context, 'Enter a measurement greater than zero');
+      return;
+    }
+    try {
+      await widget.api.post('/measurements/entries', {
+        'entries': [
+          {
+            'definition_id': definition['id'],
+            'value': value,
+            'recorded_at': DateTime.now().toIso8601String(),
+          }
+        ]
+      });
+      if (!mounted) return;
+      setState(_load);
+      await snack(context, '${str(definition['name'])} saved');
+    } catch (e) {
+      if (mounted) await showFormaError(context, e);
+    }
+  }
 
   Future<void> _log(List<dynamic> definitions) async {
     if (definitions.isEmpty) return;
@@ -665,269 +714,713 @@ class _MeasurementsScreenState extends State<MeasurementsScreen> {
       future: _data,
       onRetry: () => setState(_load),
       builder: (context, d) {
-        final definitions = d.$1, entries = d.$2, composition = d.$3;
-        final comp = composition;
+        final definitions = d.$1.map(asJson).toList();
+        final entries = d.$2.map(asJson).toList();
+        final comp = d.$3;
+        final ratios = asJson(comp['ratios']);
+        final whtr = asJson(ratios['whtr']);
+        final whr = asJson(ratios['whr']);
+        final available = asJson(comp['availableData']);
         final bmi = asJson(comp['bmi']);
-        final latest = {
-          for (final e in entries) str(asJson(e)['definition_id']): asJson(e)
-        };
-        final ratios = asJson(composition['ratios']);
-        final fat = asJson(composition['bodyFat']);
-        return ListView(
-            padding: const EdgeInsets.fromLTRB(20, 22, 20, 28),
-            children: [
-              PageHeading('Measurements studio',
-                  subtitle: 'A complete timeline of your body measurements.',
-                  trailing: PopupMenuButton<String>(
-                      onSelected: (v) {
-                        if (v == 'log') {
-                          _log(definitions);
-                        } else if (v == 'batch') {
-                          _batchLog(definitions);
-                        } else {
-                          _addDefinition();
-                        }
-                      },
-                      itemBuilder: (_) => const [
-                            PopupMenuItem(
-                                value: 'log', child: Text('Log a measurement')),
-                            PopupMenuItem(
-                                value: 'batch', child: Text('Log a batch')),
-                            PopupMenuItem(
-                                value: 'custom',
-                                child: Text('Add custom location'))
-                          ],
-                      child: const Chip(
-                          avatar: Icon(Icons.add, size: 18),
-                          label: Text('Add')))),
-              LayoutBuilder(builder: (context, box) {
-                final width =
-                    box.maxWidth < 560 ? box.maxWidth : (box.maxWidth - 24) / 3;
-                return Wrap(spacing: 12, runSpacing: 12, children: [
-                  SizedBox(
-                      width: width,
-                      child: MetricTile(
-                          label: 'Waist / height',
-                          value: ratios['whtr'] == null
-                              ? '—'
-                              : numVal(ratios['whtr']).toStringAsFixed(2),
-                          detail: 'Ratio',
-                          icon: Icons.straighten)),
-                  SizedBox(
-                      width: width,
-                      child: MetricTile(
-                          label: 'Waist / hips',
-                          value: ratios['whr'] == null
-                              ? '—'
-                              : numVal(ratios['whr']).toStringAsFixed(2),
-                          detail: 'Ratio',
-                          icon: Icons.accessibility)),
-                  SizedBox(
-                      width: width,
-                      child: MetricTile(
-                          label: 'Body fat estimate',
-                          value: fat['preferredValue'] == null
-                              ? '—'
-                              : '${numVal(fat['preferredValue']).toStringAsFixed(1)}%',
-                          detail:
-                              str(fat['category'], 'Needs more measurements'),
-                          icon: Icons.pie_chart_outline)),
-                ]);
-              }),
-              const SizedBox(height: 14),
-              SectionCard(child: LayoutBuilder(builder: (context, box) {
-                final body = _BodyMap(
-                    definitions: definitions,
-                    latest: latest,
-                    onSelect: (d) => context.go('/measurements/${d['id']}'));
-                if (box.maxWidth < 570) {
-                  return Column(children: [
-                    body,
-                    Text('Tap a location to explore its history.',
-                        style: Theme.of(context).textTheme.bodySmall)
-                  ]);
-                }
-                return Row(children: [
-                  body,
-                  const SizedBox(width: 22),
-                  Expanded(
+        final fat = asJson(comp['bodyFat']);
+        final latest = <String, Json>{};
+        for (final entry in entries) {
+          latest.putIfAbsent(str(entry['definition_id']), () => entry);
+        }
+        Json? selected;
+        for (final definition in definitions) {
+          if (definition['id'] == selectedId) selected = definition;
+        }
+        selected ??= definitions.where((d) => d['slug'] == 'waist').firstOrNull;
+        selected ??= definitions.isEmpty ? null : definitions.first;
+        final selectedSlug = selected == null ? null : str(selected['slug']);
+        final selectedEntries = selected == null
+            ? <Json>[]
+            : entries
+                .where((e) => str(e['definition_id']) == str(selected!['id']))
+                .toList();
+        final current = selectedEntries.isEmpty ? null : selectedEntries.first;
+        final baseline = selectedEntries.isEmpty ? null : selectedEntries.last;
+        final currentValue = current == null ? null : numVal(current['value']);
+        final baselineValue =
+            baseline == null ? null : numVal(baseline['value']);
+        final delta = currentValue == null || baselineValue == null
+            ? null
+            : currentValue - baselineValue;
+
+        Widget actions() => Wrap(spacing: 8, runSpacing: 8, children: [
+              FilledButton.icon(
+                  onPressed:
+                      definitions.isEmpty ? null : () => _log(definitions),
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('Log measurement')),
+              OutlinedButton.icon(
+                  onPressed:
+                      definitions.isEmpty ? null : () => _batchLog(definitions),
+                  icon: const Icon(Icons.playlist_add, size: 18),
+                  label: const Text('Quick session')),
+              IconButton.outlined(
+                  tooltip: 'Add custom site',
+                  onPressed: _addDefinition,
+                  icon: const Icon(Icons.add_business_outlined)),
+            ]);
+
+        return LayoutBuilder(builder: (context, outer) {
+          final compact = outer.maxWidth < 650;
+          return ListView(
+              padding: EdgeInsets.fromLTRB(
+                  compact ? 16 : 30, 22, compact ? 16 : 30, 32),
+              children: [
+                PageHeading('Body Measurements',
+                    subtitle:
+                        'Track circumferences, see how they change, and understand what your measurements mean.',
+                    trailing: actions()),
+                Align(
+                    alignment: Alignment.centerLeft,
+                    child: SegmentedButton<String>(
+                        showSelectedIcon: false,
+                        segments: const [
+                          ButtonSegment(
+                              value: 'studio',
+                              label: Text('Studio'),
+                              icon: Icon(Icons.person_outline)),
+                          ButtonSegment(
+                              value: 'zones',
+                              label: Text('Zones'),
+                              icon: Icon(Icons.grid_view_outlined)),
+                          ButtonSegment(
+                              value: 'history',
+                              label: Text('History'),
+                              icon: Icon(Icons.history)),
+                        ],
+                        selected: {view},
+                        onSelectionChanged: (v) =>
+                            setState(() => view = v.first))),
+                const SizedBox(height: 18),
+                if (view == 'studio') ...[
+                  LayoutBuilder(builder: (context, box) {
+                    final width = box.maxWidth >= 900
+                        ? (box.maxWidth - 16) / 2
+                        : box.maxWidth;
+                    return Wrap(spacing: 16, runSpacing: 16, children: [
+                      SizedBox(
+                          width: width,
+                          child: _RatioInsightCard(
+                              title: 'Waist-to-Hip Ratio',
+                              abbreviation: 'WHR',
+                              subtitle: 'Body-fat distribution indicator',
+                              value: numVal(whr['ratio'], -1),
+                              category:
+                                  str(whr['category'], 'Needs measurements'),
+                              inputs:
+                                  'Waist ${str(available['waistCm'], '—')} cm  ·  Hips ${str(available['hipsCm'], '—')} cm',
+                              icon: Icons.favorite_outline,
+                              isWaistHeight: false,
+                              female: str(available['sex']) == 'female')),
+                      SizedBox(
+                          width: width,
+                          child: _RatioInsightCard(
+                              title: 'Waist-to-Height Ratio',
+                              abbreviation: 'WHtR',
+                              subtitle:
+                                  'Keep your waist below half your height',
+                              value: numVal(whtr['ratio'], -1),
+                              category:
+                                  str(whtr['category'], 'Needs measurements'),
+                              inputs:
+                                  'Waist ${str(available['waistCm'], '—')} cm  ·  Height ${str(available['heightCm'], '—')} cm',
+                              icon: Icons.health_and_safety_outlined,
+                              isWaistHeight: true,
+                              female: false)),
+                    ]);
+                  }),
+                  const SizedBox(height: 16),
+                  LayoutBuilder(builder: (context, box) {
+                    final map = SectionCard(
+                        padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+                        child: Column(children: [
+                          Text('INTERACTIVE BODY MAP',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelSmall
+                                  ?.copyWith(
+                                      color:
+                                          Theme.of(context).colorScheme.primary,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 1.2)),
+                          const SizedBox(height: 4),
+                          Text('Tap a point to inspect that site',
+                              style: Theme.of(context).textTheme.bodySmall),
+                          const SizedBox(height: 8),
+                          _BodyMap(
+                              definitions: definitions,
+                              latest: latest,
+                              selectedSlug: selectedSlug,
+                              onSelect: (d) => setState(() {
+                                    selectedId = str(d['id']);
+                                    quickValue.clear();
+                                  })),
+                          const Divider(height: 12),
+                          Wrap(spacing: 16, children: [
+                            _LegendDot(
+                                color: Theme.of(context).colorScheme.primary,
+                                label: 'Recorded'),
+                            _LegendDot(
+                                color: Theme.of(context).colorScheme.outline,
+                                label: 'Not recorded'),
+                          ])
+                        ]));
+                    final inspector = SectionCard(
+                        padding: const EdgeInsets.all(22),
+                        child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('SELECTED ANATOMICAL SITE',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .labelSmall
+                                      ?.copyWith(
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .primary,
+                                          fontWeight: FontWeight.w800,
+                                          letterSpacing: 1.1)),
+                              const SizedBox(height: 6),
+                              Row(children: [
+                                Expanded(
+                                    child: Text(
+                                        str(selected?['name'], 'Select a site'),
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .headlineSmall
+                                            ?.copyWith(
+                                                fontWeight: FontWeight.w700))),
+                                if (delta != null && delta.abs() >= .05)
+                                  _DeltaPill(
+                                      value: delta,
+                                      unit: str(selected?['unit'], 'cm')),
+                              ]),
+                              const Divider(height: 26),
+                              LayoutBuilder(builder: (context, b) {
+                                final count = b.maxWidth >= 590 ? 3 : 1;
+                                final width =
+                                    (b.maxWidth - (count - 1) * 10) / count;
+                                return Wrap(
+                                    spacing: 10,
+                                    runSpacing: 10,
+                                    children: [
+                                      _SiteStat(
+                                          width: width,
+                                          label: 'CURRENT SIZE',
+                                          value: currentValue == null
+                                              ? '—'
+                                              : currentValue.toStringAsFixed(1),
+                                          unit: str(selected?['unit'], 'cm')),
+                                      _SiteStat(
+                                          width: width,
+                                          label: 'BASELINE SIZE',
+                                          value: baselineValue == null
+                                              ? '—'
+                                              : baselineValue
+                                                  .toStringAsFixed(1),
+                                          unit: str(selected?['unit'], 'cm')),
+                                      _SiteStat(
+                                          width: width,
+                                          label: 'TOTAL CHANGE',
+                                          value: delta == null
+                                              ? '—'
+                                              : '${delta > 0 ? '+' : ''}${delta.toStringAsFixed(1)}',
+                                          unit: str(selected?['unit'], 'cm'),
+                                          accent: delta == null
+                                              ? null
+                                              : delta <= 0
+                                                  ? Colors.teal
+                                                  : Colors.orange),
+                                    ]);
+                              }),
+                              const SizedBox(height: 22),
+                              Text('Record a new measurement',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleSmall
+                                      ?.copyWith(fontWeight: FontWeight.w700)),
+                              const SizedBox(height: 10),
+                              Row(children: [
+                                Expanded(
+                                    child: TextField(
+                                        controller: quickValue,
+                                        keyboardType: const TextInputType
+                                            .numberWithOptions(decimal: true),
+                                        decoration: InputDecoration(
+                                            labelText: 'Value',
+                                            suffixText:
+                                                str(selected?['unit'], 'cm')))),
+                                const SizedBox(width: 10),
+                                FilledButton.icon(
+                                    onPressed: selected == null
+                                        ? null
+                                        : () => _saveQuick(selected!),
+                                    icon: const Icon(Icons.check),
+                                    label: const Text('Save')),
+                              ]),
+                              if (current != null) ...[
+                                const SizedBox(height: 8),
+                                Text(
+                                    'Last recorded ${displayDate(current['recorded_at'])}',
+                                    style:
+                                        Theme.of(context).textTheme.bodySmall),
+                              ],
+                            ]));
+                    if (box.maxWidth < 940) {
+                      return Column(children: [
+                        map,
+                        const SizedBox(height: 14),
+                        inspector
+                      ]);
+                    }
+                    return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SizedBox(width: 320, child: map),
+                          const SizedBox(width: 16),
+                          Expanded(child: inspector),
+                        ]);
+                  }),
+                  const SizedBox(height: 16),
+                  SectionCard(
                       child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                        Text('Body map',
-                            style: Theme.of(context).textTheme.titleLarge),
-                        const SizedBox(height: 8),
-                        const Text(
-                            'Tap a marked location to open its timeline. Filled points have recorded data; outlined points are ready for your first measurement.'),
-                        const SizedBox(height: 12),
-                        Text('${latest.length} locations with records',
-                            style: Theme.of(context).textTheme.labelLarge)
-                      ]))
-                ]);
-              })),
-              const SizedBox(height: 14),
-              SectionCard(
-                  child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                    Text('Body composition',
-                        style: Theme.of(context).textTheme.titleLarge),
-                    const SizedBox(height: 10),
-                    LayoutBuilder(builder: (context, box) {
-                      final count = box.maxWidth >= 760
-                          ? 4
-                          : box.maxWidth >= 480
-                              ? 2
-                              : 1;
-                      final width = (box.maxWidth - 12 * (count - 1)) / count;
-                      return Wrap(spacing: 12, runSpacing: 12, children: [
-                        SizedBox(
-                            width: width,
-                            child: MetricTile(
-                                label: 'BMI',
+                        Row(children: [
+                          Icon(Icons.insights_outlined,
+                              color: Theme.of(context).colorScheme.primary),
+                          const SizedBox(width: 9),
+                          Expanded(
+                              child: Text('Body composition',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleLarge
+                                      ?.copyWith(fontWeight: FontWeight.w700))),
+                          Text('Estimates',
+                              style: Theme.of(context).textTheme.labelMedium),
+                        ]),
+                        const SizedBox(height: 14),
+                        LayoutBuilder(builder: (context, box) {
+                          final count = box.maxWidth >= 800
+                              ? 4
+                              : box.maxWidth >= 500
+                                  ? 2
+                                  : 1;
+                          final width =
+                              (box.maxWidth - 10 * (count - 1)) / count;
+                          return Wrap(spacing: 10, runSpacing: 10, children: [
+                            _SiteStat(
+                                width: width,
+                                label: 'BODY MASS INDEX',
                                 value: bmi['value'] == null
                                     ? '—'
                                     : numVal(bmi['value']).toStringAsFixed(1),
-                                detail: str(bmi['category']),
-                                icon: Icons.accessibility)),
-                        SizedBox(
-                            width: width,
-                            child: MetricTile(
-                                label: 'Lean mass',
+                                unit: str(bmi['category'], 'BMI')),
+                            _SiteStat(
+                                width: width,
+                                label: 'BODY FAT',
+                                value: fat['preferredValue'] == null
+                                    ? '—'
+                                    : numVal(fat['preferredValue'])
+                                        .toStringAsFixed(1),
+                                unit: '%'),
+                            _SiteStat(
+                                width: width,
+                                label: 'LEAN MASS',
                                 value: fat['leanMassKg'] == null
                                     ? '—'
-                                    : '${numVal(fat['leanMassKg']).toStringAsFixed(1)} kg',
-                                icon: Icons.fitness_center)),
-                        SizedBox(
-                            width: width,
-                            child: MetricTile(
-                                label: 'Fat mass',
-                                value: fat['fatMassKg'] == null
-                                    ? '—'
-                                    : '${numVal(fat['fatMassKg']).toStringAsFixed(1)} kg',
-                                icon: Icons.pie_chart_outline)),
-                        SizedBox(
-                            width: width,
-                            child: MetricTile(
-                                label: 'BMR',
+                                    : numVal(fat['leanMassKg'])
+                                        .toStringAsFixed(1),
+                                unit: 'kg'),
+                            _SiteStat(
+                                width: width,
+                                label: 'BASAL METABOLIC RATE',
                                 value: asJson(comp['metabolism'])['bmr'] == null
                                     ? '—'
-                                    : '${numVal(asJson(comp['metabolism'])['bmr']).round()} kcal/day',
-                                detail: 'Mifflin–St Jeor estimate',
-                                icon: Icons.local_fire_department_outlined)),
-                      ]);
+                                    : '${numVal(asJson(comp['metabolism'])['bmr']).round()}',
+                                unit: 'kcal/day'),
+                          ]);
+                        }),
+                        const SizedBox(height: 10),
+                        Text(
+                            'Body fat and BMI are estimates based on your profile and recorded measurements.',
+                            style: Theme.of(context).textTheme.bodySmall),
+                      ])),
+                  if (asList(comp['bodyFatHistory']).isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    SectionCard(
+                        child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                          Text('Body fat trend',
+                              style: Theme.of(context).textTheme.titleLarge),
+                          const SizedBox(height: 12),
+                          SizedBox(
+                              height: 210,
+                              child: WeightLineChart(
+                                  entries: asList(comp['bodyFatHistory']),
+                                  unit: '%')),
+                        ])),
+                  ],
+                ] else if (view == 'zones') ...[
+                  for (final zone in [
+                    'Core & torso',
+                    'Upper body',
+                    'Lower body',
+                    'Custom sites'
+                  ])
+                    Builder(builder: (context) {
+                      final zoneDefs = definitions.where((definition) {
+                        final slug = str(definition['slug']);
+                        final custom = definition['is_system'] != 1 &&
+                            definition['is_system'] != true;
+                        if (zone == 'Custom sites') return custom;
+                        if (custom) return false;
+                        if (zone == 'Core & torso') {
+                          return ['waist', 'hips', 'chest', 'neck', 'height']
+                              .contains(slug);
+                        }
+                        if (zone == 'Upper body') {
+                          return slug.contains('arm') ||
+                              slug.contains('forearm');
+                        }
+                        return slug.contains('thigh') || slug.contains('calf');
+                      }).toList();
+                      if (zoneDefs.isEmpty) return const SizedBox.shrink();
+                      return Padding(
+                          padding: const EdgeInsets.only(bottom: 14),
+                          child: SectionCard(
+                              child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                Text(zone,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleLarge
+                                        ?.copyWith(
+                                            fontWeight: FontWeight.w700)),
+                                const SizedBox(height: 8),
+                                for (final definition in zoneDefs)
+                                  ListTile(
+                                      contentPadding: EdgeInsets.zero,
+                                      leading: Icon(Icons.straighten,
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .primary),
+                                      title: Text(str(definition['name'])),
+                                      subtitle: Text(latest[
+                                                  str(definition['id'])] ==
+                                              null
+                                          ? 'No measurement yet'
+                                          : '${numVal(latest[str(definition['id'])]!['value']).toStringAsFixed(1)} ${str(definition['unit'])} · ${displayDate(latest[str(definition['id'])]!['recorded_at'])}'),
+                                      trailing: const Icon(Icons.chevron_right),
+                                      onTap: () => setState(() {
+                                            selectedId = str(definition['id']);
+                                            view = 'studio';
+                                          })),
+                              ])));
                     }),
-                    const SizedBox(height: 10),
-                    Text(
-                        'Body fat is an estimate. Forma prefers the US Navy circumference method when the needed measurements are available; otherwise it uses the Deurenberg BMI estimate. BMI is weight divided by height squared.',
-                        style: Theme.of(context).textTheme.bodySmall),
-                  ])),
-              const SizedBox(height: 14),
-              if (asList(composition['bodyFatHistory']).isNotEmpty)
-                SectionCard(
-                    child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                      Text('Body fat estimate history',
-                          style: Theme.of(context).textTheme.titleLarge),
-                      const SizedBox(height: 12),
-                      SizedBox(
-                          height: 210,
-                          child: WeightLineChart(
-                              entries: asList(composition['bodyFatHistory']),
-                              unit: '%')),
-                    ])),
-              if (asList(composition['bmiHistory']).isNotEmpty) ...[
-                const SizedBox(height: 14),
-                SectionCard(
-                    child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                      Text('BMI history',
-                          style: Theme.of(context).textTheme.titleLarge),
-                      const SizedBox(height: 12),
-                      SizedBox(
-                          height: 210,
-                          child: WeightLineChart(entries: [
-                            for (final row in asList(composition['bmiHistory']))
-                              {'value': asJson(row)['bmi']}
-                          ], unit: 'BMI')),
-                    ])),
-              ],
-              const SizedBox(height: 14),
-              SectionCard(
-                  child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                    Text('Measurement locations',
-                        style: Theme.of(context).textTheme.titleLarge),
-                    const SizedBox(height: 8),
-                    for (final raw in definitions)
-                      Builder(builder: (context) {
-                        final def = asJson(raw), item = latest[str(def['id'])];
-                        return ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            leading: Icon(def['is_system'] == 1
-                                ? Icons.accessibility_new
-                                : Icons.add_circle_outline),
-                            title: Text(str(def['name'])),
-                            subtitle: Text(item == null
-                                ? 'No record yet'
-                                : '${numVal(item['value']).toStringAsFixed(1)} ${str(def['unit'])} · ${displayDate(item['recorded_at'])}'),
-                            trailing:
-                                Row(mainAxisSize: MainAxisSize.min, children: [
-                              if (def['is_system'] != 1 &&
-                                  def['is_system'] != true)
-                                IconButton(
-                                    tooltip: 'Delete custom location',
-                                    icon: const Icon(Icons.delete_outline),
-                                    onPressed: () async {
-                                      if (await confirmAction(
-                                          context,
-                                          'Delete ${str(def['name'])}?',
-                                          'Historical entries for this location will also be deleted.')) {
-                                        try {
-                                          await widget.api.delete(
-                                              '/measurements/definitions/${def['id']}');
-                                          if (mounted) setState(_load);
-                                        } catch (e) {
-                                          if (context.mounted) {
-                                            await showFormaError(context, e);
-                                          }
-                                        }
-                                      }
-                                    }),
-                              const Icon(Icons.chevron_right),
-                            ]),
-                            onTap: () =>
-                                context.go('/measurements/${def['id']}'));
-                      }),
-                  ])),
-              const SizedBox(height: 14),
-              SectionCard(
-                  child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                    Text('Recent entries',
-                        style: Theme.of(context).textTheme.titleLarge),
-                    if (entries.isEmpty)
-                      emptyMessage(context, 'No measurements yet',
-                          'Log a few measurements to unlock body composition insights.'),
-                    for (final raw in entries.take(12))
-                      Builder(builder: (context) {
-                        final e = asJson(raw);
-                        return ListTile(
-                            dense: true,
-                            contentPadding: EdgeInsets.zero,
-                            title: Text(str(
-                                e['name'] ?? asJson(e['definition'])['name'])),
-                            subtitle: Text(displayDate(e['recorded_at'])),
-                            trailing: Text(
-                                '${numVal(e['value']).toStringAsFixed(1)} ${str(e['unit'] ?? asJson(e['definition'])['unit'])}'));
-                      })
-                  ])),
-            ]);
+                ] else ...[
+                  SectionCard(
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                        TextField(
+                            onChanged: (value) =>
+                                setState(() => historyQuery = value),
+                            decoration: const InputDecoration(
+                                prefixIcon: Icon(Icons.search),
+                                hintText: 'Search measurement history')),
+                        const SizedBox(height: 10),
+                        if (entries.isEmpty)
+                          emptyMessage(context, 'No measurements yet',
+                              'Log your first measurement to start a timeline.'),
+                        for (final entry in entries.where((entry) {
+                          if (historyQuery.trim().isEmpty) return true;
+                          final definition = definitions
+                              .where((d) =>
+                                  str(d['id']) == str(entry['definition_id']))
+                              .firstOrNull;
+                          return '${str(definition?['name'])} ${str(entry['value'])} ${displayDate(entry['recorded_at'])}'
+                              .toLowerCase()
+                              .contains(historyQuery.toLowerCase());
+                        }))
+                          Builder(builder: (context) {
+                            final definition = definitions
+                                .where((d) =>
+                                    str(d['id']) == str(entry['definition_id']))
+                                .firstOrNull;
+                            return ListTile(
+                                contentPadding: EdgeInsets.zero,
+                                leading: const Icon(Icons.timeline),
+                                title: Text(
+                                    str(definition?['name'], 'Measurement')),
+                                subtitle:
+                                    Text(displayDate(entry['recorded_at'])),
+                                trailing: Text(
+                                    '${numVal(entry['value']).toStringAsFixed(1)} ${str(definition?['unit'])}'));
+                          }),
+                      ])),
+                ],
+              ]);
+        });
       });
+}
+
+class _RatioInsightCard extends StatelessWidget {
+  const _RatioInsightCard({
+    required this.title,
+    required this.abbreviation,
+    required this.subtitle,
+    required this.value,
+    required this.category,
+    required this.inputs,
+    required this.icon,
+    required this.isWaistHeight,
+    required this.female,
+  });
+  final String title, abbreviation, subtitle, category, inputs;
+  final double value;
+  final IconData icon;
+  final bool isWaistHeight, female;
+
+  @override
+  Widget build(BuildContext context) {
+    final valid = value > 0;
+    final threshold = isWaistHeight
+        ? .5
+        : female
+            ? .85
+            : .9;
+    final high = isWaistHeight
+        ? .6
+        : female
+            ? .9
+            : 1.0;
+    final color = !valid
+        ? Theme.of(context).colorScheme.outline
+        : value < threshold
+            ? const Color(0xff2da77b)
+            : value < high
+                ? const Color(0xffd89a34)
+                : const Color(0xffdf5366);
+    final points =
+        isWaistHeight ? const [.5, .25, .25] : const [1 / 3, 1 / 3, 1 / 3];
+    final marker = (value / (isWaistHeight ? .8 : 1.2)).clamp(0.0, 1.0);
+    return SectionCard(
+        padding: const EdgeInsets.all(20),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                    color: color.withValues(alpha: .12),
+                    borderRadius: BorderRadius.circular(12)),
+                child: Icon(icon, color: color, size: 20)),
+            const SizedBox(width: 11),
+            Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                  Text('$title ($abbreviation)',
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 2),
+                  Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
+                ])),
+            if (valid)
+              Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                      color: color.withValues(alpha: .12),
+                      borderRadius: BorderRadius.circular(20)),
+                  child: Text(category,
+                      style: TextStyle(
+                          color: color,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700))),
+          ]),
+          const SizedBox(height: 18),
+          Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            Text(valid ? value.toStringAsFixed(2) : '—',
+                style: Theme.of(context)
+                    .textTheme
+                    .displaySmall
+                    ?.copyWith(fontWeight: FontWeight.w800, height: 1)),
+            const SizedBox(width: 10),
+            Expanded(
+                child: Padding(
+                    padding: const EdgeInsets.only(bottom: 3),
+                    child: Text(inputs,
+                        style: Theme.of(context).textTheme.bodySmall,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis))),
+            if (valid)
+              Text('Target < ${threshold.toStringAsFixed(2)}',
+                  style: Theme.of(context)
+                      .textTheme
+                      .labelSmall
+                      ?.copyWith(color: color, fontWeight: FontWeight.w700)),
+          ]),
+          const SizedBox(height: 14),
+          if (valid)
+            LayoutBuilder(
+                builder: (context, box) => SizedBox(
+                    height: 10,
+                    child: Stack(clipBehavior: Clip.none, children: [
+                      Row(children: [
+                        for (var i = 0; i < points.length; i++)
+                          Expanded(
+                              flex: (points[i] * 100).round(),
+                              child: Container(
+                                  decoration: BoxDecoration(
+                                      color: [
+                                        const Color(0xff229b73),
+                                        const Color(0xffd49a34),
+                                        const Color(0xffd94d62)
+                                      ][i],
+                                      borderRadius: BorderRadius.horizontal(
+                                          left: i == 0
+                                              ? const Radius.circular(8)
+                                              : Radius.zero,
+                                          right: i == points.length - 1
+                                              ? const Radius.circular(8)
+                                              : Radius.zero))))
+                      ]),
+                      Positioned(
+                          left: (box.maxWidth * marker - 2)
+                              .clamp(-1.0, box.maxWidth - 3),
+                          top: -3,
+                          child: Container(
+                              width: 5,
+                              height: 16,
+                              decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(4),
+                                  boxShadow: const [
+                                    BoxShadow(
+                                        color: Colors.black38, blurRadius: 3)
+                                  ]))),
+                    ])))
+          else
+            Text(
+                'Add waist and ${isWaistHeight ? 'height' : 'hip'} measurements to calculate this ratio.',
+                style: Theme.of(context).textTheme.bodySmall),
+          if (valid) ...[
+            const SizedBox(height: 6),
+            Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: (isWaistHeight
+                        ? const [
+                            'Healthy < 0.50',
+                            'Increased 0.50–0.59',
+                            'High ≥ 0.60'
+                          ]
+                        : const ['Lower risk', 'Moderate', 'Elevated'])
+                    .map((label) =>
+                        Text(label, style: const TextStyle(fontSize: 10)))
+                    .toList()),
+          ],
+        ]));
+  }
+}
+
+class _SiteStat extends StatelessWidget {
+  const _SiteStat(
+      {required this.width,
+      required this.label,
+      required this.value,
+      required this.unit,
+      this.accent});
+  final double width;
+  final String label, value, unit;
+  final Color? accent;
+  @override
+  Widget build(BuildContext context) => Container(
+      width: width,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface.withValues(alpha: .68),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+              color: Theme.of(context)
+                  .colorScheme
+                  .outlineVariant
+                  .withValues(alpha: .36))),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w800,
+                letterSpacing: .6),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis),
+        const SizedBox(height: 5),
+        Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Flexible(
+                  child: Text(value,
+                      style: Theme.of(context)
+                          .textTheme
+                          .headlineSmall
+                          ?.copyWith(
+                              color: accent, fontWeight: FontWeight.w800),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis)),
+              const SizedBox(width: 5),
+              Flexible(
+                  child: Text(unit,
+                      style: Theme.of(context).textTheme.bodySmall,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis)),
+            ]),
+      ]));
+}
+
+class _DeltaPill extends StatelessWidget {
+  const _DeltaPill({required this.value, required this.unit});
+  final double value;
+  final String unit;
+  @override
+  Widget build(BuildContext context) {
+    final color =
+        value <= 0 ? const Color(0xff2da77b) : const Color(0xffd89a34);
+    return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+            color: color.withValues(alpha: .12),
+            borderRadius: BorderRadius.circular(20)),
+        child: Text('${value > 0 ? '+' : ''}${value.toStringAsFixed(1)} $unit',
+            style: TextStyle(
+                color: color, fontWeight: FontWeight.w700, fontSize: 12)));
+  }
+}
+
+class _LegendDot extends StatelessWidget {
+  const _LegendDot({required this.color, required this.label});
+  final Color color;
+  final String label;
+  @override
+  Widget build(BuildContext context) =>
+      Row(mainAxisSize: MainAxisSize.min, children: [
+        Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        const SizedBox(width: 6),
+        Text(label, style: Theme.of(context).textTheme.labelSmall),
+      ]);
 }
 
 class MeasurementDetailScreen extends StatelessWidget {
