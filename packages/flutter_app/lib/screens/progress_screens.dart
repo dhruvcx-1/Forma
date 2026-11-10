@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import '../data/api_client.dart';
 import '../widgets/forma_widgets.dart';
 import 'shared.dart';
+
 class GoalsScreen extends StatefulWidget {
   const GoalsScreen({super.key, required this.api});
   final ApiClient api;
@@ -106,95 +107,297 @@ class _GoalsScreenState extends State<GoalsScreen> {
         final weight = numVal(current['value'], -1);
         final start =
             numVal(goal['starting_weight'] ?? goal['startWeight'], -1);
+        final unit =
+            str(goal['target_weight_unit'], str(current['unit'], 'kg'));
+        final range = target - start;
         final progress = target > 0 && start > 0 && weight > 0
-            ? ((weight - start) / (target - start)).clamp(0.0, 1.0)
+            ? range.abs() < .001
+                ? 1.0
+                : ((weight - start) / range).clamp(0.0, 1.0).toDouble()
             : 0.0;
         final days = DateTime.tryParse(
                 str(goal['target_date'] ?? goal['targetDate'], ''))
             ?.difference(DateTime.now())
             .inDays;
-        return ListView(padding: const EdgeInsets.all(22), children: [
-          PageHeading('Goals',
-              subtitle: 'Set a target and see how your latest trend relates.'),
-          SectionCard(
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                Row(children: [
-                  Expanded(
-                      child: Text(
-                          target > 0
-                              ? 'Your weight target'
-                              : 'Build a goal that fits you',
-                          style: Theme.of(context).textTheme.titleLarge)),
-                  IconButton(
-                      onPressed: () => _edit(goal),
-                      icon: const Icon(Icons.edit_outlined))
+        final daysText = days == null
+            ? 'No target date'
+            : days < 0
+                ? 'Target date passed'
+                : days == 0
+                    ? 'Target date is today'
+                    : '$days days remaining';
+        final remaining =
+            target > 0 && weight > 0 ? (target - weight).abs() : 0;
+        final weeklyPace = target > 0 && weight > 0 && days != null && days > 0
+            ? (target - weight) / days * 7
+            : null;
+        return ListView(
+            padding: const EdgeInsets.fromLTRB(18, 20, 18, 30),
+            children: [
+              PageHeading('Goals',
+                  subtitle:
+                      'A clear target, with progress grounded in your records.'),
+              SectionCard(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(children: [
+                          Container(
+                              width: 38,
+                              height: 38,
+                              decoration: BoxDecoration(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .primaryContainer,
+                                  borderRadius: BorderRadius.circular(13)),
+                              child: Icon(Icons.flag_outlined,
+                                  color:
+                                      Theme.of(context).colorScheme.primary)),
+                          const SizedBox(width: 11),
+                          Expanded(
+                              child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                Text(
+                                    target > 0
+                                        ? 'Weight target'
+                                        : 'Set your first goal',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium
+                                        ?.copyWith(
+                                            fontWeight: FontWeight.w700)),
+                                Text(
+                                    target > 0
+                                        ? 'Your progress at a glance'
+                                        : 'Choose a target and timeline',
+                                    style:
+                                        Theme.of(context).textTheme.bodySmall),
+                              ])),
+                          IconButton.filledTonal(
+                              tooltip: 'Edit goal',
+                              onPressed: () => _edit(goal),
+                              icon: const Icon(Icons.edit_outlined))
+                        ]),
+                        const SizedBox(height: 20),
+                        if (target > 0) ...[
+                          LayoutBuilder(builder: (context, box) {
+                            final stacked = box.maxWidth < 350;
+                            final targetWidget = Text(
+                                '${target.toStringAsFixed(1)} $unit',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .displaySmall
+                                    ?.copyWith(
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: -1.2));
+                            final progressBadge = Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 11, vertical: 7),
+                                decoration: BoxDecoration(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .primaryContainer,
+                                    borderRadius: BorderRadius.circular(99)),
+                                child: Text(
+                                    '${(progress * 100).round()}% complete',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .labelMedium
+                                        ?.copyWith(
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .primary,
+                                            fontWeight: FontWeight.w700)));
+                            return stacked
+                                ? Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                        targetWidget,
+                                        const SizedBox(height: 8),
+                                        progressBadge,
+                                      ])
+                                : Row(children: [
+                                    Expanded(child: targetWidget),
+                                    progressBadge,
+                                  ]);
+                          }),
+                          const SizedBox(height: 16),
+                          ClipRRect(
+                              borderRadius: BorderRadius.circular(99),
+                              child: LinearProgressIndicator(
+                                  value: progress, minHeight: 11)),
+                          const SizedBox(height: 9),
+                          Row(children: [
+                            Expanded(
+                                child: Text(
+                                    'Start ${start > 0 ? '${start.toStringAsFixed(1)} $unit' : '—'}',
+                                    style:
+                                        Theme.of(context).textTheme.bodySmall)),
+                            Text('Target ${target.toStringAsFixed(1)} $unit',
+                                style: Theme.of(context).textTheme.bodySmall),
+                          ]),
+                          const SizedBox(height: 16),
+                          Wrap(spacing: 8, runSpacing: 8, children: [
+                            _InfoChip(
+                                icon: Icons.monitor_weight_outlined,
+                                label:
+                                    'Current ${weight > 0 ? '${weight.toStringAsFixed(1)} $unit' : '—'}'),
+                            _InfoChip(
+                                icon: Icons.calendar_today_outlined,
+                                label: daysText),
+                          ]),
+                          if (str(goal['notes'], '').isNotEmpty) ...[
+                            const SizedBox(height: 12),
+                            Text(str(goal['notes'], ''),
+                                style: Theme.of(context).textTheme.bodyMedium),
+                          ]
+                        ] else ...[
+                          Text(
+                              'Start with one simple target. You can adjust it whenever your priorities change.',
+                              style: Theme.of(context).textTheme.bodyMedium),
+                          const SizedBox(height: 16),
+                          FilledButton.icon(
+                              onPressed: () => _edit(goal),
+                              icon: const Icon(Icons.add),
+                              label: const Text('Create a goal'))
+                        ]
+                      ])),
+              if (target > 0) ...[
+                const SizedBox(height: 14),
+                MetricGrid(children: [
+                  MetricTile(
+                      label: 'Current weight',
+                      value: weight > 0
+                          ? '${weight.toStringAsFixed(1)} $unit'
+                          : '—',
+                      detail: 'Latest recorded',
+                      icon: Icons.monitor_weight_outlined),
+                  MetricTile(
+                      label: 'To your target',
+                      value: weight > 0
+                          ? '${remaining.toStringAsFixed(1)} $unit'
+                          : '—',
+                      detail: target >= weight
+                          ? 'Left to lose or gain'
+                          : 'Past your target',
+                      icon: Icons.straighten_outlined),
+                  MetricTile(
+                      label: 'Weekly pace',
+                      value: weeklyPace == null
+                          ? '—'
+                          : '${weeklyPace > 0 ? '+' : ''}${weeklyPace.toStringAsFixed(2)} $unit',
+                      detail: weeklyPace == null
+                          ? 'Add a target date to estimate'
+                          : 'Per week to meet date',
+                      icon: Icons.trending_up_outlined),
                 ]),
-                const SizedBox(height: 10),
-                if (target > 0) ...[
-                  Text(
-                      '${target.toStringAsFixed(1)} ${str(goal['target_weight_unit'], 'kg')}',
-                      style: Theme.of(context)
-                          .textTheme
-                          .displaySmall
-                          ?.copyWith(fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 8),
-                  LinearProgressIndicator(
-                      value: progress,
-                      minHeight: 8,
-                      borderRadius: BorderRadius.circular(6)),
-                  const SizedBox(height: 8),
-                  Text(
-                      'Current ${weight > 0 ? weight.toStringAsFixed(1) : '—'} kg · ${days == null ? 'No target date' : days < 0 ? 'Target date passed' : '$days days remaining'}'),
-                  if (start > 0 && target > 0 && days != null && days > 0) ...[
-                    const SizedBox(height: 14),
-                    Text(
-                        'Planned pace: ${((target - start) / days * 7).toStringAsFixed(2)} kg per week',
-                        style: Theme.of(context).textTheme.titleMedium)
-                  ],
-                  if (str(goal['notes'], '').isNotEmpty) ...[
-                    const SizedBox(height: 10),
-                    Text(str(goal['notes']))
-                  ]
-                ] else ...[
-                  emptyMessage(context, 'A goal gives your progress direction',
-                      'Add a starting weight, target and optional date.'),
-                  Center(
-                      child: FilledButton.icon(
-                          onPressed: () => _edit(goal),
-                          icon: const Icon(Icons.flag_outlined),
-                          label: const Text('Set a goal')))
-                ]
-              ])),
-          const SizedBox(height: 14),
-          SectionCard(
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                Text('Milestones',
-                    style: Theme.of(context).textTheme.titleLarge),
-                const SizedBox(height: 12),
-                if (target > 0 && start > 0)
-                  for (final p in [.25, .5, .75, 1.0])
-                    ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: Icon(
-                            p <= progress
-                                ? Icons.check_circle
-                                : Icons.circle_outlined,
-                            color: p <= progress
-                                ? Theme.of(context).colorScheme.primary
-                                : null),
-                        title: Text('${(p * 100).round()}% of the way'),
-                        trailing: Text(
-                            '${(start + (target - start) * p).toStringAsFixed(1)} kg'))
-                else
-                  const Text(
-                      'Set a starting and target weight to see milestones.')
-              ]))
-        ]);
+              ],
+              const SizedBox(height: 14),
+              SectionCard(
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                    Row(children: [
+                      Expanded(
+                          child: Text('Milestones',
+                              style: Theme.of(context).textTheme.titleLarge)),
+                      if (target > 0 && start > 0)
+                        Text('${(progress * 100).round()}% complete',
+                            style: Theme.of(context)
+                                .textTheme
+                                .labelMedium
+                                ?.copyWith(
+                                    color:
+                                        Theme.of(context).colorScheme.primary,
+                                    fontWeight: FontWeight.w700)),
+                    ]),
+                    const SizedBox(height: 12),
+                    if (target > 0 && start > 0)
+                      LayoutBuilder(builder: (context, box) {
+                        const gap = 10.0;
+                        final columns = box.maxWidth < 360 ? 2 : 4;
+                        final width =
+                            (box.maxWidth - (columns - 1) * gap) / columns;
+                        return Wrap(spacing: gap, runSpacing: gap, children: [
+                          for (final p in [.25, .5, .75, 1.0])
+                            SizedBox(
+                                width: width,
+                                child: _MilestoneTile(
+                                    percent: p,
+                                    value: start + (target - start) * p,
+                                    unit: unit,
+                                    completed: progress >= p)),
+                        ]);
+                      })
+                    else
+                      Text(
+                          'Add starting and target weights to see your milestones.',
+                          style: Theme.of(context).textTheme.bodyMedium),
+                  ])),
+            ]);
       });
+}
+
+class _InfoChip extends StatelessWidget {
+  const _InfoChip({required this.icon, required this.label});
+  final IconData icon;
+  final String label;
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+        decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(99)),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, size: 15, color: Theme.of(context).colorScheme.primary),
+          const SizedBox(width: 6),
+          Text(label, style: Theme.of(context).textTheme.labelMedium),
+        ]),
+      );
+}
+
+class _MilestoneTile extends StatelessWidget {
+  const _MilestoneTile({
+    required this.percent,
+    required this.value,
+    required this.unit,
+    required this.completed,
+  });
+  final double percent, value;
+  final String unit;
+  final bool completed;
+  @override
+  Widget build(BuildContext context) {
+    final color = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+          color: completed
+              ? color.primaryContainer.withValues(alpha: .42)
+              : color.surfaceContainerHighest.withValues(alpha: .55),
+          borderRadius: BorderRadius.circular(14),
+          border:
+              Border.all(color: color.outlineVariant.withValues(alpha: .45))),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(completed ? Icons.check_circle : Icons.circle_outlined,
+            size: 18,
+            color: completed ? color.primary : color.onSurfaceVariant),
+        const SizedBox(height: 8),
+        Text('${(percent * 100).round()}%',
+            style: Theme.of(context)
+                .textTheme
+                .titleMedium
+                ?.copyWith(fontWeight: FontWeight.w700)),
+        Text('${value.toStringAsFixed(1)} $unit',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodySmall),
+      ]),
+    );
+  }
 }
 
 class NutritionScreen extends StatefulWidget {
@@ -329,35 +532,35 @@ class _NutritionScreenState extends State<NutritionScreen> {
         return ListView(padding: const EdgeInsets.all(22), children: [
           PageHeading('Nutrition',
               subtitle: 'Personalized energy and macronutrient targets.'),
-          Wrap(spacing: 12, runSpacing: 12, children: [
-            SizedBox(
-                width: 190,
-                child: MetricTile(
-                    label: 'Daily calories',
-                    value:
-                        '${numVal(active['daily_calories'] ?? active['dailyCalories']).round()} kcal',
-                    icon: Icons.local_fire_department_outlined)),
-            SizedBox(
-                width: 190,
-                child: MetricTile(
-                    label: 'Protein',
-                    value:
-                        '${numVal(active['protein_grams'] ?? active['proteinGrams']).round()} g',
-                    icon: Icons.fitness_center)),
-            SizedBox(
-                width: 190,
-                child: MetricTile(
-                    label: 'Carbohydrates',
-                    value:
-                        '${numVal(active['carbs_grams'] ?? active['carbsGrams']).round()} g',
-                    icon: Icons.grain)),
-            SizedBox(
-                width: 190,
-                child: MetricTile(
-                    label: 'Fat',
-                    value:
-                        '${numVal(active['fat_grams'] ?? active['fatGrams']).round()} g',
-                    icon: Icons.opacity_outlined))
+          MetricGrid(children: [
+            MetricTile(
+                label: 'Daily energy',
+                value:
+                    '${numVal(active['daily_calories'] ?? active['dailyCalories']).round()} kcal',
+                detail:
+                    'BMR ${numVal(calc['bmr']).round()} · TDEE ${numVal(calc['tdee']).round()} kcal',
+                icon: Icons.local_fire_department_outlined),
+            MetricTile(
+                label: 'Protein',
+                value:
+                    '${numVal(active['protein_grams'] ?? active['proteinGrams']).round()} g',
+                detail:
+                    '${numVal(active['protein_pct'] ?? active['proteinPct']).round()}% of target',
+                icon: Icons.fitness_center),
+            MetricTile(
+                label: 'Carbohydrates',
+                value:
+                    '${numVal(active['carbs_grams'] ?? active['carbsGrams']).round()} g',
+                detail:
+                    '${numVal(active['carbs_pct'] ?? active['carbsPct']).round()}% of target',
+                icon: Icons.grain),
+            MetricTile(
+                label: 'Fat',
+                value:
+                    '${numVal(active['fat_grams'] ?? active['fatGrams']).round()} g',
+                detail:
+                    '${numVal(active['fat_pct'] ?? active['fatPct']).round()}% of target',
+                icon: Icons.opacity_outlined)
           ]),
           const SizedBox(height: 14),
           if (diet == 'custom')
@@ -644,25 +847,22 @@ class _FastingScreenState extends State<FastingScreen> {
             ]
           ])),
           const SizedBox(height: 14),
-          Wrap(spacing: 12, runSpacing: 12, children: [
-            SizedBox(
-                width: 185,
-                child: MetricTile(
-                    label: 'Completed fasts',
-                    value: str(stats['completedFasts'], '0'),
-                    icon: Icons.check_circle_outline)),
-            SizedBox(
-                width: 185,
-                child: MetricTile(
-                    label: 'Hours fasted',
-                    value: str(stats['totalHoursFasted'], '0'),
-                    icon: Icons.schedule)),
-            SizedBox(
-                width: 185,
-                child: MetricTile(
-                    label: 'Longest',
-                    value: '${str(stats['longestFastHours'], '0')} h',
-                    icon: Icons.emoji_events_outlined))
+          MetricGrid(children: [
+            MetricTile(
+                label: 'Completed fasts',
+                value: str(stats['completedFasts'], '0'),
+                detail: 'Sessions completed',
+                icon: Icons.check_circle_outline),
+            MetricTile(
+                label: 'Hours fasted',
+                value: str(stats['totalHoursFasted'], '0'),
+                detail: 'Total recorded time',
+                icon: Icons.schedule),
+            MetricTile(
+                label: 'Longest fast',
+                value: '${str(stats['longestFastHours'], '0')} h',
+                detail: 'Personal best',
+                icon: Icons.emoji_events_outlined)
           ]),
           const SizedBox(height: 14),
           SectionCard(

@@ -109,6 +109,13 @@ jobs:
         working-directory: packages/flutter_app
         run: cp build/app/outputs/flutter-apk/app-release.apk "Forma-Android-${GITHUB_SHA::7}.apk"
 
+      - name: Verify APK output
+        working-directory: packages/flutter_app
+        run: |
+          test -s "Forma-Android-${GITHUB_SHA::7}.apk"
+          file "Forma-Android-${GITHUB_SHA::7}.apk"
+          sha256sum "Forma-Android-${GITHUB_SHA::7}.apk"
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
@@ -119,7 +126,7 @@ jobs:
 
   publish-android-release:
     name: Attach APK to GitHub Release
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
     needs: build-android
     runs-on: ubuntu-latest
     permissions:
@@ -134,7 +141,13 @@ jobs:
       - name: Publish APK on GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ github.ref == 'refs/heads/master' && 'android-latest' || github.ref_name }}
+          name: ${{ github.ref == 'refs/heads/master' && 'Forma Android (latest)' || format('Forma {0}', github.ref_name) }}
+          prerelease: ${{ github.ref == 'refs/heads/master' }}
+          make_latest: false
+          overwrite_files: true
           files: Forma-Android-*.apk
+          fail_on_unmatched_files: true
 
   build-and-push:
     # Publish the container only when validation and the Android APK build from

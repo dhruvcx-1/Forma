@@ -6,6 +6,7 @@ import 'data/api_client.dart';
 import 'screens/auth_screen.dart';
 import 'screens/feature_screens.dart';
 import 'screens/home_screen.dart';
+import 'screens/onboarding_screen.dart';
 import 'screens/startup_screen.dart';
 import 'state/session_state.dart';
 import 'state/theme_state.dart';
@@ -46,6 +47,9 @@ class _FormaAppState extends State<FormaApp> {
           }
           final destinationPath = destination.path;
           final destinationIsOpen = _isOpenRoute(destinationPath);
+          if (session.user == null && session.status?['isSetup'] == false) {
+            return '/setup';
+          }
           if (session.user == null && !destinationIsOpen) return '/login';
           if (session.user != null && destinationPath == '/login') return '/';
           return destination.toString();
@@ -53,14 +57,37 @@ class _FormaAppState extends State<FormaApp> {
 
         if (session.busy) return null;
         final open = _isOpenRoute(path);
-        if (session.user == null && !open) return '/login';
-        if (session.user != null && path == '/login') return '/';
+        final setupNeeded = session.status?['isSetup'] == false;
+        final registrationEnabled =
+            session.status?['registrationEnabled'] == true;
+        if (session.user == null && setupNeeded && path != '/setup') {
+          return '/setup';
+        }
+        if (path == '/setup' && !setupNeeded) {
+          return session.user == null ? '/login' : '/';
+        }
+        if (path == '/register' && !registrationEnabled) {
+          return '/login';
+        }
+        if (session.user == null && !open) {
+          return '/login';
+        }
+        if (session.user != null &&
+            (path == '/login' || path == '/setup' || path == '/register')) {
+          return '/';
+        }
         return null;
       },
       routes: [
         GoRoute(
             path: '/startup', builder: (_, __) => const FormaStartupScreen()),
         GoRoute(path: '/login', builder: (_, __) => const AuthScreen()),
+        GoRoute(
+            path: '/setup',
+            builder: (_, __) => const OnboardingScreen(setup: true)),
+        GoRoute(
+            path: '/register',
+            builder: (_, __) => const OnboardingScreen(setup: false)),
         GoRoute(
             path: '/u/:username',
             builder: (_, state) => PublicProfileScreen(
@@ -120,8 +147,8 @@ class _FormaAppState extends State<FormaApp> {
     return MaterialApp.router(
       title: 'Forma',
       debugShowCheckedModeBanner: false,
-      theme: FormaTheme.light,
-      darkTheme: FormaTheme.dark,
+      theme: FormaTheme.lightFor(theme.accentColor),
+      darkTheme: FormaTheme.darkFor(theme.accentColor),
       themeMode: theme.mode,
       routerConfig: router,
     );
@@ -136,6 +163,8 @@ class _FormaAppState extends State<FormaApp> {
 
 bool _isOpenRoute(String path) =>
     path == '/login' ||
+    path == '/setup' ||
+    path == '/register' ||
     path.startsWith('/u/') ||
     path.startsWith('/@') ||
     path == '/fasting/widget';
@@ -175,9 +204,15 @@ class FormaShell extends StatelessWidget {
     final session = context.watch<SessionState>();
     return Scaffold(
       appBar: AppBar(
-          title: Text(wide ? 'FORMA' : title,
-              style: TextStyle(
-                  fontWeight: FontWeight.w700, letterSpacing: wide ? 2.4 : 0)),
+          title: Row(mainAxisSize: MainAxisSize.min, children: [
+            Image.asset('assets/branding/forma-mark.png',
+                width: 25, height: 25, filterQuality: FilterQuality.high),
+            const SizedBox(width: 9),
+            const Text('FORMA',
+                style:
+                    TextStyle(fontWeight: FontWeight.w800, letterSpacing: 2)),
+          ]),
+          titleSpacing: 18,
           actions: [
             PopupMenuButton<String>(
               tooltip: 'Account',

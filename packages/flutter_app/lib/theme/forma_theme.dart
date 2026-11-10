@@ -5,15 +5,17 @@ abstract final class FormaTheme {
   static const violet = Color(0xff8b3dff);
   static const canvas = Color(0xfff5f6f2);
 
-  static ThemeData get light => _make(Brightness.light, canvas, ink, violet,
-      const Color(0xffffffff), const Color(0xff737d75));
-  static ThemeData get dark => _make(
+  static ThemeData lightFor(Color accent) => _make(Brightness.light, canvas,
+      ink, accent, const Color(0xffffffff), const Color(0xff737d75));
+  static ThemeData darkFor(Color accent) => _make(
       Brightness.dark,
       const Color(0xff0b0c0f),
       const Color(0xffeff0f5),
-      const Color(0xffa46bff),
+      accent,
       const Color(0xff141519),
       const Color(0xff92939e));
+  static ThemeData get light => lightFor(violet);
+  static ThemeData get dark => darkFor(const Color(0xffa46bff));
 
   static ThemeData _make(Brightness brightness, Color bg, Color fg,
       Color accent, Color surface, Color muted) {

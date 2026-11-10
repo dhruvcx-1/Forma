@@ -14,8 +14,8 @@ class PageHeading extends StatelessWidget {
             Text(title,
                 style: Theme.of(context)
                     .textTheme
-                    .headlineMedium
-                    ?.copyWith(fontWeight: FontWeight.w600),
+                    .headlineSmall
+                    ?.copyWith(fontWeight: FontWeight.w700),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis),
             if (subtitle != null) ...[
@@ -69,15 +69,29 @@ class MetricTile extends StatelessWidget {
           children: [
             Row(children: [
               if (icon != null) ...[
-                Icon(icon,
-                    size: 17, color: Theme.of(context).colorScheme.primary),
-                const SizedBox(width: 7)
+                Container(
+                    width: 30,
+                    height: 30,
+                    decoration: BoxDecoration(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .primaryContainer
+                            .withValues(alpha: .65),
+                        borderRadius: BorderRadius.circular(10)),
+                    child: Icon(icon,
+                        size: 17,
+                        color: Theme.of(context).colorScheme.primary)),
+                const SizedBox(width: 9)
               ],
               Expanded(
                   child: Text(label,
-                      style: Theme.of(context).textTheme.labelLarge))
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w600)))
             ]),
-            const SizedBox(height: 8),
+            const SizedBox(height: 9),
             FittedBox(
                 fit: BoxFit.scaleDown,
                 alignment: Alignment.centerLeft,
@@ -85,15 +99,41 @@ class MetricTile extends StatelessWidget {
                     style: Theme.of(context)
                         .textTheme
                         .titleLarge
-                        ?.copyWith(fontWeight: FontWeight.w600))),
+                        ?.copyWith(fontWeight: FontWeight.w700))),
             if (detail != null) ...[
-              const SizedBox(height: 3),
+              const SizedBox(height: 2),
               Text(detail!,
                   style: Theme.of(context).textTheme.bodySmall,
-                  maxLines: 1,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis)
             ],
           ]));
+}
+
+class MetricGrid extends StatelessWidget {
+  const MetricGrid({required this.children, super.key});
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, constraints) {
+          const spacing = 12.0;
+          const minTileWidth = 140.0;
+          final columns =
+              ((constraints.maxWidth + spacing) / (minTileWidth + spacing))
+                  .floor()
+                  .clamp(1, 4);
+          return GridView.count(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: columns,
+            mainAxisExtent: 126,
+            crossAxisSpacing: spacing,
+            mainAxisSpacing: spacing,
+            children: children,
+          );
+        },
+      );
 }
 
 class AsyncContent<T> extends StatelessWidget {

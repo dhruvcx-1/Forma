@@ -36,7 +36,7 @@ class SessionState extends ChangeNotifier {
   }
 
   Future<bool> signIn(String username, String password,
-      {bool setup = false, bool register = false}) async {
+      {bool setup = false, bool register = false, String? displayName}) async {
     busy = true;
     error = null;
     notifyListeners();
@@ -50,6 +50,8 @@ class SessionState extends ChangeNotifier {
           {
             'username': username.trim(),
             'password': password,
+            if (displayName?.trim().isNotEmpty == true)
+              'displayName': displayName!.trim(),
           });
       final me = await api.getMap('/auth/me');
       user = Map<String, dynamic>.from(me['user'] as Map);

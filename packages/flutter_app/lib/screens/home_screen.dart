@@ -95,14 +95,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               tooltip: 'Refresh',
                               onPressed: () => setState(_load),
                               icon: const Icon(Icons.refresh))),
-                      GridView.count(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          crossAxisCount: wide ? 4 : 2,
-                          mainAxisExtent: wide ? 142 : 138,
-                          crossAxisSpacing: 12,
-                          mainAxisSpacing: 12,
-                          children: metricCards),
+                      MetricGrid(children: metricCards),
                       const SizedBox(height: 14),
                       if (active.isNotEmpty)
                         Card(

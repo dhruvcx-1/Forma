@@ -151,36 +151,30 @@ class _WeightScreenState extends State<WeightScreen> {
                       onPressed: _add,
                       icon: const Icon(Icons.add),
                       label: const Text('Log weight'))),
-              Wrap(spacing: 12, runSpacing: 12, children: [
-                SizedBox(
-                    width: 205,
-                    child: MetricTile(
-                        label: 'Current',
-                        value: cur.isEmpty
-                            ? '—'
-                            : '${numVal(cur['value']).toStringAsFixed(1)} kg',
-                        detail: displayDate(cur['recorded_at']),
-                        icon: Icons.monitor_weight_outlined)),
-                SizedBox(
-                    width: 205,
-                    child: MetricTile(
-                        label: 'Total change',
-                        value: stats['totalChange'] == null
-                            ? '—'
-                            : '${numVal(stats['totalChange']).toStringAsFixed(1)} kg',
-                        detail: stats['percentChange'] == null
-                            ? 'Start logging to see change'
-                            : '${stats['percentChange']}% overall',
-                        icon: Icons.trending_down)),
-                SizedBox(
-                    width: 205,
-                    child: MetricTile(
-                        label: 'Trend rate',
-                        value: stats['trend'] == null
-                            ? '—'
-                            : '${numVal(stats['trend']).toStringAsFixed(2)} kg/day',
-                        detail: '${all.length} entries',
-                        icon: Icons.show_chart)),
+              MetricGrid(children: [
+                MetricTile(
+                    label: 'Current weight',
+                    value: cur.isEmpty
+                        ? '—'
+                        : '${numVal(cur['value']).toStringAsFixed(1)} kg',
+                    detail: displayDate(cur['recorded_at']),
+                    icon: Icons.monitor_weight_outlined),
+                MetricTile(
+                    label: 'Total change',
+                    value: stats['totalChange'] == null
+                        ? '—'
+                        : '${numVal(stats['totalChange']).toStringAsFixed(1)} kg',
+                    detail: stats['percentChange'] == null
+                        ? 'Start logging to see change'
+                        : '${stats['percentChange']}% overall',
+                    icon: Icons.trending_down),
+                MetricTile(
+                    label: 'Trend rate',
+                    value: stats['trend'] == null
+                        ? '—'
+                        : '${numVal(stats['trend']).toStringAsFixed(2)} kg/day',
+                    detail: '${all.length} entries',
+                    icon: Icons.show_chart),
               ]),
               const SizedBox(height: 14),
               SectionCard(

@@ -14,14 +14,13 @@ class _AuthScreenState extends State<AuthScreen> {
   final username = TextEditingController();
   final password = TextEditingController();
   bool obscure = true;
-  bool register = false;
 
   @override
   Widget build(BuildContext context) {
     final session = context.watch<SessionState>();
     final setup = session.status?['isSetup'] == false;
     final canRegister = session.status?['registrationEnabled'] == true;
-    final creating = setup || register;
+    final creating = setup;
     return Scaffold(
         body: Center(
             child: ConstrainedBox(
@@ -42,9 +41,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   Text(
                       setup
                           ? 'A clearer picture of your progress.'
-                          : register
-                              ? 'Start your Forma account.'
-                              : 'Welcome back.',
+                          : 'Welcome back.',
                       style: Theme.of(context)
                           .textTheme
                           .headlineMedium
@@ -53,9 +50,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   Text(
                       setup
                           ? 'Create the administrator account for this Forma instance.'
-                          : register
-                              ? 'Create an account to start tracking.'
-                              : 'Sign in to continue your progress.',
+                          : 'Sign in to continue your progress.',
                       style: Theme.of(context).textTheme.bodyMedium),
                   const SizedBox(height: 28),
                   TextFormField(
@@ -97,7 +92,7 @@ class _AuthScreenState extends State<AuthScreen> {
                                   if (!form.currentState!.validate()) return;
                                   if (await context.read<SessionState>().signIn(
                                           username.text, password.text,
-                                          setup: setup, register: register) &&
+                                          setup: setup) &&
                                       context.mounted) {
                                     context.go('/');
                                   }
@@ -112,10 +107,8 @@ class _AuthScreenState extends State<AuthScreen> {
                     const SizedBox(height: 10),
                     Center(
                         child: TextButton(
-                      onPressed: () => setState(() => register = !register),
-                      child: Text(register
-                          ? 'Already have an account? Sign in'
-                          : 'Create a new account'),
+                      onPressed: () => context.go('/register'),
+                      child: const Text('Create a new account'),
                     )),
                   ],
                 ]),

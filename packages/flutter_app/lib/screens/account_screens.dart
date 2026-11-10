@@ -428,14 +428,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   if (p['username'] != null && isPublic) ...[
                     const SizedBox(height: 8),
                     OutlinedButton.icon(
-                        onPressed: () async {
-                          final link =
-                              '${Uri.base.origin}/@${str(p['username'])}';
-                          await Clipboard.setData(ClipboardData(text: link));
-                          if (context.mounted) {
-                            await snack(context, 'Profile link copied');
-                          }
-                        },
+                        onPressed: () => _copyPublicProfileLink(
+                            context, widget.api, str(p['username'])),
                         icon: const Icon(Icons.link),
                         label: const Text('Copy public profile link')),
                   ],
@@ -561,6 +555,44 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ], selected: {
                     theme.mode
                   }, onSelectionChanged: (v) => theme.setMode(v.first)),
+                  const SizedBox(height: 16),
+                  Text('Accent color',
+                      style: Theme.of(context).textTheme.titleSmall),
+                  const SizedBox(height: 8),
+                  Wrap(spacing: 12, runSpacing: 10, children: [
+                    for (final entry in ThemeState.accents.entries)
+                      Tooltip(
+                          message: entry.key[0].toUpperCase() +
+                              entry.key.substring(1),
+                          child: InkWell(
+                              onTap: () => theme.setAccent(entry.key),
+                              customBorder: const CircleBorder(),
+                              child: Container(
+                                  width: 38,
+                                  height: 38,
+                                  decoration: BoxDecoration(
+                                      color: entry.value,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                          color: theme.accent == entry.key
+                                              ? Theme.of(context)
+                                                  .colorScheme
+                                                  .onSurface
+                                              : Colors.transparent,
+                                          width: 2),
+                                      boxShadow: theme.accent == entry.key
+                                          ? [
+                                              BoxShadow(
+                                                  color: entry.value
+                                                      .withValues(alpha: .35),
+                                                  blurRadius: 8)
+                                            ]
+                                          : null),
+                                  child: theme.accent == entry.key
+                                      ? const Icon(Icons.check,
+                                          color: Colors.white, size: 19)
+                                      : null))),
+                  ]),
                 ])),
             const SizedBox(height: 14),
             SectionCard(
@@ -878,73 +910,345 @@ class _AdminScreenState extends State<AdminScreen> {
       );
 }
 
-class PublicProfileScreen extends StatelessWidget {
+Future<void> _copyPublicProfileLink(
+    BuildContext context, ApiClient api, String username) async {
+  final base = Uri.parse(api.dio.options.baseUrl);
+  final path = base.path.replaceFirst(RegExp(r'/api/?$'), '');
+  final origin = base.replace(path: path, query: null, fragment: null);
+  final link = origin.resolve('/@${Uri.encodeComponent(username)}').toString();
+  try {
+    await Clipboard.setData(ClipboardData(text: link));
+    if (context.mounted) await snack(context, 'Public profile link copied');
+  } catch (_) {
+    if (!context.mounted) return;
+    await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+              title: const Text('Copy your profile link'),
+              content: SelectableText(link),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Done'))
+              ],
+            ));
+  }
+}
+
+class PublicProfileScreen extends StatefulWidget {
   const PublicProfileScreen(
       {super.key, required this.api, required this.username});
   final ApiClient api;
   final String username;
   @override
+  State<PublicProfileScreen> createState() => _PublicProfileScreenState();
+}
+
+class _PublicProfileScreenState extends State<PublicProfileScreen> {
+  late Future<Json> _profile;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  void _load() => _profile = widget.api.getMap(
+      '/public/profile/${Uri.encodeComponent(widget.username.replaceFirst(RegExp(r'^@'), ''))}');
+
+  Future<void> _copyLink(String username) =>
+      _copyPublicProfileLink(context, widget.api, username);
+
+  @override
   Widget build(BuildContext context) => FutureBuilder<Json>(
-      future: api.getMap(
-          '/public/profile/${Uri.encodeComponent(username.replaceFirst(RegExp(r'^@'), ''))}'),
+      future: _profile,
       builder: (context, s) {
         if (s.hasError) {
           return Scaffold(
+              appBar: AppBar(title: const Text('Forma')),
               body: Center(
-                  child: Text('This profile is private or unavailable.')));
+                  child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 430),
+                      child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: SectionCard(
+                              child: emptyMessage(
+                                  context,
+                                  'Profile unavailable',
+                                  'This profile may be private or the link may have changed.'))))));
         }
         if (!s.hasData) {
-          return const Scaffold(
-              body: Center(child: CircularProgressIndicator()));
+          return Scaffold(
+              appBar: AppBar(title: const Text('Forma')),
+              body: const Center(child: CircularProgressIndicator()));
         }
         final result = s.data!,
             p = asJson(result['profile']),
             stats = asJson(result['stats']),
             history = asList(result['history']);
+        final unit = stats['unit_system'] == 'imperial' ? 'lb' : 'kg';
+        final current = numVal(stats['current_weight'], double.nan);
+        final start = numVal(stats['start_weight'], double.nan);
+        final change = numVal(stats['total_change'], double.nan);
+        final goal = numVal(stats['goal_weight'], double.nan);
+        final displayName =
+            str(p['display_name'], str(p['username'], 'Forma member'));
+        final avatar = p['avatar_url'] == null
+            ? null
+            : Uri.parse(widget.api.dio.options.baseUrl)
+                .replace(path: str(p['avatar_url']))
+                .toString();
+        final width = MediaQuery.sizeOf(context).width;
+        final compact = width < 600;
         return Scaffold(
-            appBar: AppBar(title: const Text('Forma · Public profile')),
-            body: ListView(padding: const EdgeInsets.all(22), children: [
-              PageHeading(str(p['display_name'] ?? p['username']),
-                  subtitle:
-                      str(p['bio'], 'Progress shared by this Forma user.')),
-              Wrap(spacing: 12, children: [
-                SizedBox(
-                    width: 210,
-                    child: MetricTile(
-                        label: 'Starting',
-                        value:
-                            '${str(stats['start_weight'])} ${str(stats['unit_system'])}')),
-                SizedBox(
-                    width: 210,
-                    child: MetricTile(
-                        label: 'Current',
-                        value:
-                            '${str(stats['current_weight'])} ${str(stats['unit_system'])}')),
-                SizedBox(
-                    width: 210,
-                    child: MetricTile(
-                        label: 'Total change',
-                        value:
-                            '${str(stats['total_change'])} ${str(stats['unit_system'])}'))
-              ]),
-              const SizedBox(height: 14),
-              SectionCard(
-                  child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                    Text('Weight progress',
-                        style: Theme.of(context).textTheme.titleLarge),
-                    const SizedBox(height: 10),
-                    SizedBox(
-                        height: 230,
-                        child: WeightLineChart(
-                            entries: history,
-                            unit: str(stats['unit_system']) == 'imperial'
-                                ? 'lbs'
-                                : 'kg'))
-                  ]))
-            ]));
+            appBar: AppBar(
+                title: const Text('FORMA',
+                    style: TextStyle(
+                        fontWeight: FontWeight.w800, letterSpacing: 2)),
+                actions: [
+                  IconButton(
+                      tooltip: 'Copy profile link',
+                      onPressed: () => _copyLink(str(p['username'])),
+                      icon: const Icon(Icons.ios_share_outlined)),
+                  const SizedBox(width: 8)
+                ]),
+            body: ListView(
+                padding: EdgeInsets.fromLTRB(
+                    compact ? 16 : 28, 18, compact ? 16 : 28, 32),
+                children: [
+                  Center(
+                      child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 940),
+                          child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Card(
+                                    child: Padding(
+                                        padding:
+                                            EdgeInsets.all(compact ? 18 : 26),
+                                        child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Row(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: [
+                                                    CircleAvatar(
+                                                        radius:
+                                                            compact ? 28 : 34,
+                                                        backgroundImage:
+                                                            avatar == null
+                                                                ? null
+                                                                : NetworkImage(
+                                                                    avatar),
+                                                        child: avatar == null
+                                                            ? Text(
+                                                                displayName
+                                                                    .characters
+                                                                    .first
+                                                                    .toUpperCase(),
+                                                                style: Theme.of(
+                                                                        context)
+                                                                    .textTheme
+                                                                    .titleLarge)
+                                                            : null),
+                                                    const SizedBox(width: 14),
+                                                    Expanded(
+                                                        child: Column(
+                                                            crossAxisAlignment:
+                                                                CrossAxisAlignment
+                                                                    .start,
+                                                            children: [
+                                                          Text(displayName,
+                                                              maxLines: 2,
+                                                              overflow:
+                                                                  TextOverflow
+                                                                      .ellipsis,
+                                                              style: Theme.of(
+                                                                      context)
+                                                                  .textTheme
+                                                                  .headlineSmall
+                                                                  ?.copyWith(
+                                                                      fontWeight:
+                                                                          FontWeight
+                                                                              .w700)),
+                                                          const SizedBox(
+                                                              height: 2),
+                                                          Text(
+                                                              '@${str(p['username'])}',
+                                                              style: Theme.of(
+                                                                      context)
+                                                                  .textTheme
+                                                                  .bodyMedium
+                                                                  ?.copyWith(
+                                                                      color: Theme.of(
+                                                                              context)
+                                                                          .colorScheme
+                                                                          .onSurfaceVariant)),
+                                                        ])),
+                                                    if (!compact)
+                                                      Icon(
+                                                          Icons.public_outlined,
+                                                          color:
+                                                              Theme.of(context)
+                                                                  .colorScheme
+                                                                  .primary),
+                                                  ]),
+                                              if (str(p['bio'], '')
+                                                  .isNotEmpty) ...[
+                                                const SizedBox(height: 16),
+                                                Text(str(p['bio']),
+                                                    style: Theme.of(context)
+                                                        .textTheme
+                                                        .bodyLarge),
+                                              ],
+                                              const SizedBox(height: 16),
+                                              Wrap(
+                                                  spacing: 8,
+                                                  runSpacing: 8,
+                                                  children: [
+                                                    _ProfileTag(
+                                                        icon: Icons
+                                                            .monitor_weight_outlined,
+                                                        text:
+                                                            'Weight progress'),
+                                                    _ProfileTag(
+                                                        icon: Icons
+                                                            .event_available_outlined,
+                                                        text:
+                                                            '${numVal(stats['total_entries']).round()} entries'),
+                                                    if (stats['latest_date'] !=
+                                                        null)
+                                                      _ProfileTag(
+                                                          icon: Icons
+                                                              .update_outlined,
+                                                          text:
+                                                              'Updated ${displayDate(stats['latest_date']).split(' ').first}'),
+                                                  ]),
+                                            ]))),
+                                const SizedBox(height: 16),
+                                Text('Progress summary',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleLarge
+                                        ?.copyWith(
+                                            fontWeight: FontWeight.w700)),
+                                const SizedBox(height: 10),
+                                MetricGrid(children: [
+                                  MetricTile(
+                                      label: 'Current weight',
+                                      value: current.isNaN
+                                          ? '—'
+                                          : '${current.toStringAsFixed(1)} $unit',
+                                      detail: stats['latest_date'] == null
+                                          ? 'Latest entry'
+                                          : 'As of ${displayDate(stats['latest_date']).split(' ').first}',
+                                      icon: Icons.monitor_weight_outlined),
+                                  MetricTile(
+                                      label: 'Starting weight',
+                                      value: start.isNaN
+                                          ? '—'
+                                          : '${start.toStringAsFixed(1)} $unit',
+                                      detail: stats['first_date'] == null
+                                          ? 'First recorded'
+                                          : 'Since ${displayDate(stats['first_date']).split(' ').first}',
+                                      icon: Icons.flag_outlined),
+                                  MetricTile(
+                                      label: 'Total change',
+                                      value: change.isNaN
+                                          ? '—'
+                                          : '${change > 0 ? '+' : ''}${change.toStringAsFixed(1)} $unit',
+                                      detail: change.isNaN
+                                          ? 'Add weight entries to see change'
+                                          : change < 0
+                                              ? 'Down from starting weight'
+                                              : change > 0
+                                                  ? 'Up from starting weight'
+                                                  : 'No net change',
+                                      icon: change.isNaN || change == 0
+                                          ? Icons.trending_flat
+                                          : change < 0
+                                              ? Icons.trending_down
+                                              : Icons.trending_up),
+                                  if (!goal.isNaN)
+                                    MetricTile(
+                                        label: 'Goal weight',
+                                        value:
+                                            '${goal.toStringAsFixed(1)} $unit',
+                                        detail: stats['goal_target_date'] ==
+                                                null
+                                            ? 'Personal target'
+                                            : 'Target ${displayDate(stats['goal_target_date']).split(' ').first}',
+                                        icon: Icons.track_changes_outlined),
+                                ]),
+                                const SizedBox(height: 16),
+                                SectionCard(
+                                    child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                      Row(children: [
+                                        Icon(Icons.show_chart,
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .primary),
+                                        const SizedBox(width: 9),
+                                        Expanded(
+                                            child: Text('Weight trend',
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .titleLarge
+                                                    ?.copyWith(
+                                                        fontWeight:
+                                                            FontWeight.w700))),
+                                        Text(unit,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .labelLarge
+                                                ?.copyWith(
+                                                    color: Theme.of(context)
+                                                        .colorScheme
+                                                        .onSurfaceVariant))
+                                      ]),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                          history.length < 2
+                                              ? 'Your shared weight entries'
+                                              : '${history.length} recorded entries over time',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall),
+                                      const SizedBox(height: 12),
+                                      SizedBox(
+                                          height: 240,
+                                          child: WeightLineChart(
+                                              entries: history, unit: unit)),
+                                    ])),
+                              ]))),
+                ]));
       });
+}
+
+class _ProfileTag extends StatelessWidget {
+  const _ProfileTag({required this.icon, required this.text});
+  final IconData icon;
+  final String text;
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+        decoration: BoxDecoration(
+            color: Theme.of(context)
+                .colorScheme
+                .secondaryContainer
+                .withValues(alpha: .55),
+            borderRadius: BorderRadius.circular(99)),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, size: 15, color: Theme.of(context).colorScheme.primary),
+          const SizedBox(width: 6),
+          Text(text, style: Theme.of(context).textTheme.labelMedium),
+        ]),
+      );
 }
 
 class FastingWidgetScreen extends StatelessWidget {
