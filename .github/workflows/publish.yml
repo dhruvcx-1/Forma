@@ -137,7 +137,9 @@ jobs:
           files: Forma-Android-*.apk
 
   build-and-push:
-    needs: validate
+    # Publish the container only when validation and the Android APK build from
+    # this same commit have both succeeded.
+    needs: [validate, build-android]
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:

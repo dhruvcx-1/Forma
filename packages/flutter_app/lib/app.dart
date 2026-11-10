@@ -6,6 +6,7 @@ import 'data/api_client.dart';
 import 'screens/auth_screen.dart';
 import 'screens/feature_screens.dart';
 import 'screens/home_screen.dart';
+import 'screens/startup_screen.dart';
 import 'state/session_state.dart';
 import 'state/theme_state.dart';
 import 'theme/forma_theme.dart';
@@ -27,17 +28,38 @@ class _FormaAppState extends State<FormaApp> {
       initialLocation: '/',
       refreshListenable: session,
       redirect: (context, state) {
-        if (session.busy) return null;
         final path = state.matchedLocation;
-        final open = path == '/login' ||
-            path.startsWith('/u/') ||
-            path.startsWith('/@') ||
-            path == '/fasting/widget';
+        if (session.isRestoring) {
+          if (path == '/startup') return null;
+          return '/startup?from=${Uri.encodeComponent(state.uri.toString())}';
+        }
+
+        if (path == '/startup') {
+          var destination =
+              Uri.tryParse(state.uri.queryParameters['from'] ?? '/') ??
+                  Uri(path: '/');
+          if (destination.hasScheme ||
+              destination.hasAuthority ||
+              !destination.path.startsWith('/') ||
+              destination.path == '/startup') {
+            destination = Uri(path: '/');
+          }
+          final destinationPath = destination.path;
+          final destinationIsOpen = _isOpenRoute(destinationPath);
+          if (session.user == null && !destinationIsOpen) return '/login';
+          if (session.user != null && destinationPath == '/login') return '/';
+          return destination.toString();
+        }
+
+        if (session.busy) return null;
+        final open = _isOpenRoute(path);
         if (session.user == null && !open) return '/login';
         if (session.user != null && path == '/login') return '/';
         return null;
       },
       routes: [
+        GoRoute(
+            path: '/startup', builder: (_, __) => const FormaStartupScreen()),
         GoRoute(path: '/login', builder: (_, __) => const AuthScreen()),
         GoRoute(
             path: '/u/:username',
@@ -111,6 +133,12 @@ class _FormaAppState extends State<FormaApp> {
     super.dispose();
   }
 }
+
+bool _isOpenRoute(String path) =>
+    path == '/login' ||
+    path.startsWith('/u/') ||
+    path.startsWith('/@') ||
+    path == '/fasting/widget';
 
 class FormaShell extends StatelessWidget {
   const FormaShell(

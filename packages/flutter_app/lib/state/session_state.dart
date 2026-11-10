@@ -8,9 +8,11 @@ class SessionState extends ChangeNotifier {
   Map<String, dynamic>? user;
   Map<String, dynamic>? status;
   bool busy = true;
+  bool isRestoring = true;
   String? error;
 
   Future<void> restore() async {
+    final startedAt = DateTime.now();
     try {
       status = await api.getMap('/auth/status');
       if (status?['isAuthenticated'] == true) {
@@ -20,6 +22,14 @@ class SessionState extends ChangeNotifier {
     } catch (_) {
       error = 'Could not reach Forma. Check the server address and try again.';
     } finally {
+      // Keep the branded startup screen visible long enough to prevent a flash
+      // between the first Flutter frame and the resolved login/app route.
+      final elapsed = DateTime.now().difference(startedAt);
+      const minimumSplashTime = Duration(milliseconds: 500);
+      if (elapsed < minimumSplashTime) {
+        await Future<void>.delayed(minimumSplashTime - elapsed);
+      }
+      isRestoring = false;
       busy = false;
       notifyListeners();
     }

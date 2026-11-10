@@ -1,11 +1,11 @@
 {
-    "name": "forma",
-    "short_name": "forma",
+    "name": "Forma — Body Tracker",
+    "short_name": "Forma",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#0A0D1B",
+    "theme_color": "#0A0D1B",
+    "description": "Track your health and body progress with Forma.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
