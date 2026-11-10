@@ -19,6 +19,16 @@ subprojects {
     project.evaluationDependsOn(":app")
 }
 
+// Some Flutter plugin releases still declare compileSdk 34 while their
+// AndroidX dependencies require API 36. Keep all plugin library modules
+// aligned with the app's compile SDK to satisfy AAR metadata checks.
+subprojects {
+    afterEvaluate {
+        extensions.findByType<com.android.build.api.dsl.LibraryExtension>()
+            ?.compileSdk = 36
+    }
+}
+
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
 }
