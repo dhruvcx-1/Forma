@@ -23,3 +23,7 @@ flutter build appbundle --release
 ```
 
 For Android builds, install Android SDK Command-line Tools and NDK (Side by side) in Android Studio's SDK Manager, then run `flutter doctor --android-licenses` and accept the displayed Android SDK terms yourself. Native sessions store their cookie jar in app-private storage. Web sessions use browser cookies. The Docker image builds and serves the Web output on the same origin as the API. Override `FORMA_API_BASE_URL` at build time only when the API is hosted at a different origin.
+
+## Android builds from GitHub Actions
+
+Each workflow run builds a release-mode APK (`com.deshmesh.forma`) configured for `https://forma.deshmesh.com` and uploads it as a 30-day workflow artifact named `forma-android-<commit>`. Download it from the run's **Artifacts** section. Version tags beginning with `v` also attach the APK to the GitHub Release. The current Android Gradle configuration signs release builds with Flutter's debug key, so these APKs are for direct testing and sideloading; Play Store distribution requires a private release keystore and matching GitHub secrets.

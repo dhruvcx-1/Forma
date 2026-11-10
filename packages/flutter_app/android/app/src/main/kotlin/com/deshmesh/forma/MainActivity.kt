@@ -1,4 +1,4 @@
-package com.example.forma
+package com.deshmesh.forma
 
 import io.flutter.embedding.android.FlutterActivity
 

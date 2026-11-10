@@ -71,6 +71,71 @@ jobs:
         working-directory: packages/flutter_app
         run: flutter build web --release
 
+  build-android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: "3.47.9"
+          cache: true
+
+      - name: Install Flutter dependencies
+        working-directory: packages/flutter_app
+        run: flutter pub get --enforce-lockfile
+
+      - name: Build installable Android APK
+        working-directory: packages/flutter_app
+        run: flutter build apk --release --dart-define=FORMA_API_BASE_URL=https://forma.deshmesh.com
+
+      - name: Name APK
+        working-directory: packages/flutter_app
+        run: cp build/app/outputs/flutter-apk/app-release.apk "Forma-Android-${GITHUB_SHA::7}.apk"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: forma-android-${{ github.sha }}
+          path: packages/flutter_app/Forma-Android-*.apk
+          if-no-files-found: error
+          retention-days: 30
+
+  publish-android-release:
+    name: Attach APK to GitHub Release
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: build-android
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download APK artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: forma-android-${{ github.sha }}
+
+      - name: Publish APK on GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: Forma-Android-*.apk
+
   build-and-push:
     needs: validate
     if: github.event_name != 'pull_request'
