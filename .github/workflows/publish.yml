@@ -72,6 +72,10 @@ jobs:
       contents: read
     env:
       FORMA_PERSONAL_API_BASE_URL: ${{ secrets.FORMA_PERSONAL_API_BASE_URL }}
+      FORMA_ANDROID_KEYSTORE_BASE64: ${{ secrets.FORMA_ANDROID_KEYSTORE_BASE64 }}
+      FORMA_ANDROID_STORE_PASSWORD: ${{ secrets.FORMA_ANDROID_STORE_PASSWORD }}
+      FORMA_ANDROID_KEY_ALIAS: ${{ secrets.FORMA_ANDROID_KEY_ALIAS }}
+      FORMA_ANDROID_KEY_PASSWORD: ${{ secrets.FORMA_ANDROID_KEY_PASSWORD }}
 
     steps:
       - name: Checkout repository
@@ -97,18 +101,71 @@ jobs:
         working-directory: packages/flutter_app
         run: flutter pub get --enforce-lockfile
 
+      - name: Validate Android signing key configuration
+        shell: bash
+        run: |
+          any_set=false
+          all_set=true
+          for value in "$FORMA_ANDROID_KEYSTORE_BASE64" "$FORMA_ANDROID_STORE_PASSWORD" "$FORMA_ANDROID_KEY_ALIAS" "$FORMA_ANDROID_KEY_PASSWORD"; do
+            if [[ -n "$value" ]]; then any_set=true; else all_set=false; fi
+          done
+          if [[ "$any_set" == true && "$all_set" == false ]]; then
+            echo "Configure all four Android signing secrets together. See README.md."
+            exit 1
+          fi
+          if [[ "$GITHUB_REF_TYPE" == "tag" && "$all_set" == false ]]; then
+            echo "Versioned APK releases require the four Android signing secrets. See README.md."
+            exit 1
+          fi
+
+      - name: Decode Android signing key
+        if: env.FORMA_ANDROID_KEYSTORE_BASE64 != ''
+        shell: bash
+        run: |
+          KEYSTORE_PATH="$RUNNER_TEMP/forma-release.jks"
+          printf '%s' "$FORMA_ANDROID_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
+          echo "FORMA_ANDROID_KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
+
+      - name: Determine Android version
+        id: android-version
+        shell: bash
+        working-directory: packages/flutter_app
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            if [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "APK release tags must use the stable vMAJOR.MINOR.PATCH format (for example, v1.2.3)."
+              exit 1
+            fi
+            APP_VERSION="${GITHUB_REF_NAME#v}"
+          else
+            APP_VERSION="$(sed -n 's/^version: *\([^+]*\).*/\1/p' pubspec.yaml | head -n 1)"
+          fi
+          if [[ ! "$APP_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid Android version name: $APP_VERSION"
+            exit 1
+          fi
+          echo "name=$APP_VERSION" >> "$GITHUB_OUTPUT"
+          echo "number=$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
+
       - name: Build host-configurable Android APK
         working-directory: packages/flutter_app
-        run: flutter build apk --release
+        run: flutter build apk --release --build-name "${{ steps.android-version.outputs.name }}" --build-number "${{ steps.android-version.outputs.number }}"
 
-      - name: Name APK
+      - name: Name APK for release or build
         working-directory: packages/flutter_app
-        run: cp build/app/outputs/flutter-apk/app-release.apk "Forma-Android-Universal-${GITHUB_SHA::7}.apk"
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            APK_NAME="Forma-Android-${GITHUB_REF_NAME}.apk"
+          else
+            APK_NAME="Forma-Android-Universal-${GITHUB_SHA::7}.apk"
+          fi
+          cp build/app/outputs/flutter-apk/app-release.apk "$APK_NAME"
 
       - name: Build personal Android APK (optional)
         if: env.FORMA_PERSONAL_API_BASE_URL != ''
         working-directory: packages/flutter_app
-        run: flutter build apk --release --dart-define=FORMA_API_BASE_URL="$FORMA_PERSONAL_API_BASE_URL"
+        run: flutter build apk --release --build-name "${{ steps.android-version.outputs.name }}" --build-number "${{ steps.android-version.outputs.number }}" --dart-define=FORMA_API_BASE_URL="$FORMA_PERSONAL_API_BASE_URL"
 
       - name: Name personal APK
         if: env.FORMA_PERSONAL_API_BASE_URL != ''
@@ -118,7 +175,11 @@ jobs:
       - name: Verify APK output
         working-directory: packages/flutter_app
         run: |
-          test -s "Forma-Android-Universal-${GITHUB_SHA::7}.apk"
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            test -s "Forma-Android-${GITHUB_REF_NAME}.apk"
+          else
+            test -s "Forma-Android-Universal-${GITHUB_SHA::7}.apk"
+          fi
           file Forma-Android-*.apk
           sha256sum Forma-Android-*.apk
 
@@ -152,7 +213,7 @@ jobs:
           prerelease: ${{ github.ref == 'refs/heads/master' }}
           make_latest: false
           overwrite_files: true
-          files: Forma-Android-Universal-*.apk
+          files: ${{ github.ref == 'refs/heads/master' && 'Forma-Android-Universal-*.apk' || format('Forma-Android-{0}.apk', github.ref_name) }}
           fail_on_unmatched_files: true
 
   build-and-push:

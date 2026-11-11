@@ -8,6 +8,8 @@ dist/
 *.db
 *.db-shm
 *.db-wal
+*.jks
+*.keystore
 coverage/
 playwright-report/
 test-results/

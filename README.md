@@ -185,6 +185,51 @@ The public APK does not have a hardcoded server address. Your selected server UR
 - Your phone must be able to reach the configured server.
 - For local network deployments, use an address accessible from your phone.
 
+### Get updates with Obtainium
+
+[Obtainium](https://github.com/ImranR98/Obtainium) can watch Forma's GitHub releases and install APK updates directly. See the [Obtainium Wiki](https://wiki.obtainium.imranr.dev/) and its [GitHub source options](https://wiki.obtainium.imranr.dev/sources/#github) for details.
+
+1. Install Obtainium and tap **Add app**.
+2. Choose **GitHub** as the source and enter `https://github.com/dhruvcx-1/Forma`.
+3. In the app's source options, use the APK filter regex `^Forma-Android-v[0-9]+\.[0-9]+\.[0-9]+\.apk$` to select versioned public APKs and skip the `android-latest` prerelease or personal builds.
+4. Select the latest stable versioned release and add Forma.
+5. Install the APK, open Forma, and enter the URL of your own Forma server.
+
+Android requires each update to have the same signing certificate as the installed app. Versioned APK releases use the persistent release key configured in GitHub Actions; the one-time setup below is required before the first versioned release can be published.
+
+### Configure versioned APK releases
+
+Create a dedicated Android release keystore and keep a secure backup of both the keystore and its passwords. Losing this key prevents publishing updates that Android will accept over existing installs.
+
+```sh
+keytool -genkeypair -v -keystore forma-release.jks -storetype JKS \
+  -keyalg RSA -keysize 2048 -validity 10000 -alias forma
+```
+
+In GitHub, open **Settings → Secrets and variables → Actions** and add these repository secrets:
+
+| Secret | Value |
+|---|---|
+| `FORMA_ANDROID_KEYSTORE_BASE64` | Base64-encoded contents of `forma-release.jks` |
+| `FORMA_ANDROID_STORE_PASSWORD` | Keystore password |
+| `FORMA_ANDROID_KEY_ALIAS` | `forma` (or the alias you chose) |
+| `FORMA_ANDROID_KEY_PASSWORD` | Password for the signing key |
+
+For PowerShell, copy the encoded keystore to the clipboard with:
+
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes('.\forma-release.jks')) | Set-Clipboard
+```
+
+Never commit the keystore or its passwords. After the secrets are configured, push a version tag to build and publish that version's APK and Docker image:
+
+```sh
+git tag v1.2.3
+git push origin v1.2.3
+```
+
+GitHub creates a release for the tag and attaches `Forma-Android-v1.2.3.apk`. The APK's Android version name matches the tag, and its version code increases with each Actions run. The first APK signed with your release key may not update an older APK signed with a different key; uninstall the older build once if Android rejects the update. Local APK builds continue to use the local Android debug key.
+
 ### Build an APK with your own server address
 
 You can also build a personal APK with a default server address using `FORMA_API_BASE_URL`.
@@ -378,10 +423,11 @@ Forma combines a modern cross-platform frontend with a lightweight, self-hostabl
 GitHub Actions handles the project's automated validation and distribution.
 
 - Validates the backend and Flutter application.
-- Builds a host-configurable Android APK.
+- Builds a host-configurable Android APK for each version tag (`v1.2.3` → `Forma-Android-v1.2.3.apk`).
 - Publishes multi-architecture Docker images (`amd64` and `arm64`).
 - Publishes Docker images to [GitHub Container Registry](https://github.com/dhruvcx-1/Forma/pkgs/container/forma).
-- Attaches the Android APK to the `android-latest` prerelease.
+- Attaches master-branch builds to the `android-latest` prerelease.
+- Creates a versioned GitHub Release and attaches its APK when a `v*.*.*` tag is pushed.
 
 Want a personal APK with a predefined server address?
 

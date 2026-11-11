@@ -14,6 +14,18 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    val releaseKeystorePath = System.getenv("FORMA_ANDROID_KEYSTORE_PATH")
+    if (!releaseKeystorePath.isNullOrBlank()) {
+        signingConfigs {
+            create("formaRelease") {
+                storeFile = file(releaseKeystorePath)
+                storePassword = System.getenv("FORMA_ANDROID_STORE_PASSWORD")
+                keyAlias = System.getenv("FORMA_ANDROID_KEY_ALIAS")
+                keyPassword = System.getenv("FORMA_ANDROID_KEY_PASSWORD")
+            }
+        }
+    }
+
     defaultConfig {
         applicationId = "com.deshmesh.forma"
         // You can update the following values to match your application needs.
@@ -30,9 +42,13 @@ android {
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // CI version releases use a persistent private keystore. Local builds
+            // remain easy to run and sideload with the standard debug key.
+            signingConfig = if (releaseKeystorePath.isNullOrBlank()) {
+                signingConfigs.getByName("debug")
+            } else {
+                signingConfigs.getByName("formaRelease")
+            }
         }
     }
 }
