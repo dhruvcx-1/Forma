@@ -169,6 +169,9 @@ Download the latest Android APK:
   <a href="https://github.com/dhruvcx-1/Forma/releases/tag/android-latest">
     <img src="https://img.shields.io/badge/Download-Android%20APK-34A853?style=for-the-badge&logo=android&logoColor=white" alt="Download Android APK">
   </a>
+  <a href="https://apps.obtainium.imranr.dev/redirect?r=obtainium%3A%2F%2Fapp%2F%257B%2522id%2522%253A%2522com.deshmesh.forma%2522%252C%2522url%2522%253A%2522https%253A%252F%252Fgithub.com%252Fdhruvcx-1%252FForma%2522%252C%2522author%2522%253A%2522dhruvcx-1%2522%252C%2522name%2522%253A%2522Forma%2522%257D">
+    <img src="https://img.shields.io/badge/Get%20it%20on-Obtainium-673AB7?style=for-the-badge&logo=android&logoColor=white" alt="Get Forma on Obtainium">
+  </a>
 </p>
 
 Forma provides a host-configurable APK, which means:
