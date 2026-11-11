@@ -158,7 +158,7 @@ jobs:
           if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
             APK_NAME="Forma-Android-${GITHUB_REF_NAME}.apk"
           else
-            APK_NAME="Forma-Android-Universal-${GITHUB_SHA::7}.apk"
+            APK_NAME="Forma-Android-Universal.apk"
           fi
           cp build/app/outputs/flutter-apk/app-release.apk "$APK_NAME"
 
@@ -178,7 +178,7 @@ jobs:
           if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
             test -s "Forma-Android-${GITHUB_REF_NAME}.apk"
           else
-            test -s "Forma-Android-Universal-${GITHUB_SHA::7}.apk"
+            test -s "Forma-Android-Universal.apk"
           fi
           file Forma-Android-*.apk
           sha256sum Forma-Android-*.apk
@@ -205,6 +205,34 @@ jobs:
         with:
           name: forma-android-${{ github.sha }}
 
+      - name: Remove previous rolling APK assets
+        if: github.ref == 'refs/heads/master'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            let release;
+            try {
+              ({ data: release } = await github.rest.repos.getReleaseByTag({
+                owner,
+                repo,
+                tag: 'android-latest',
+              }));
+            } catch (error) {
+              if (error.status === 404) return;
+              throw error;
+            }
+
+            for (const asset of release.assets) {
+              if (asset.name.endsWith('.apk')) {
+                await github.rest.repos.deleteReleaseAsset({
+                  owner,
+                  repo,
+                  asset_id: asset.id,
+                });
+              }
+            }
+
       - name: Publish APK on GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -213,7 +241,7 @@ jobs:
           prerelease: ${{ github.ref == 'refs/heads/master' }}
           make_latest: false
           overwrite_files: true
-          files: ${{ github.ref == 'refs/heads/master' && 'Forma-Android-Universal-*.apk' || format('Forma-Android-{0}.apk', github.ref_name) }}
+          files: ${{ github.ref == 'refs/heads/master' && 'Forma-Android-Universal.apk' || format('Forma-Android-{0}.apk', github.ref_name) }}
           fail_on_unmatched_files: true
 
   build-and-push:

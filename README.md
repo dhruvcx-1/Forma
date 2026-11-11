@@ -429,6 +429,8 @@ GitHub Actions handles the project's automated validation and distribution.
 - Attaches master-branch builds to the `android-latest` prerelease.
 - Creates a versioned GitHub Release and attaches its APK when a `v*.*.*` tag is pushed.
 
+The rolling `android-latest` prerelease keeps only its current APK. Versioned releases retain their own APK assets for older installs and Obtainium history.
+
 Want a personal APK with a predefined server address?
 
 Configure the `FORMA_PERSONAL_API_BASE_URL` repository secret. GitHub Actions can then build a separate personal APK without changing the public release APK.
