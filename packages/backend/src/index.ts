@@ -4,7 +4,7 @@ import 'dotenv/config';
 // Import db eagerly so migrations run before the server starts accepting connections
 import './db/index.js';
 
-import fastify, { frontendDist } from './server.js';
+import fastify, { webDist } from './server.js';
 
 const PORT = parseInt(process.env.PORT ?? '3001', 10);
 const HOST = process.env.HOST ?? '0.0.0.0';
@@ -50,9 +50,9 @@ try {
 ┌─────────────────────────────────────────────────────────────┐
 │   ✨ Forma — Body Progress Tracker                          │
 │                                                             │
-│   🌐 Frontend UI:  http://${displayHost}:${externalPort}                   │
+│   🌐 Flutter Web:  http://${displayHost}:${externalPort}                   │
 │   🔌 Backend API:  http://${displayHost}:${externalPort}/api               │
-│   📁 Static SPA:   ${frontendDist ? 'Mounted (' + frontendDist + ')' : 'Not mounted (API only)'} 
+│   📁 Static Web:   ${webDist ? 'Mounted (' + webDist + ')' : 'Not mounted (API only)'}
 └─────────────────────────────────────────────────────────────┘
   `);
 } catch (err) {

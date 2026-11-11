@@ -11,13 +11,16 @@
 [![CI/CD Build & Publish](https://github.com/dhruvcx-1/Forma/actions/workflows/publish.yml/badge.svg)](https://github.com/dhruvcx-1/Forma/actions/workflows/publish.yml)
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
 ![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)
-![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
 ![Fastify](https://img.shields.io/badge/Fastify-v4-000000?logo=fastify&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
 
-[**📸 View Complete Screenshot Gallery & Intel →**](SCREENSHOTS.md)
-
 </div>
+
+<p align="center">
+  <a href="screenshots.md">Explore the desktop and Android screenshot gallery →</a>
+</p>
+
+![Forma mobile app showcase](screenshots/forma-mobile-showcase.png)
 
 > **Frontend:** the shared Flutter app in `packages/flutter_app` serves the Docker Web frontend and powers Android builds. The project publishes a host-configurable Android APK and a multi-architecture Docker image. Each self-hosted Web install connects to the API at its own origin. The app, API, SQLite database, and `/app/data` volume remain together; upgrades do not migrate or delete user data.
 
@@ -25,7 +28,7 @@
 
 Install Flutter and Android Studio, then run `flutter pub get` from `packages/flutter_app`. To run Web locally, start the backend with `npm run dev --workspace=packages/backend`, then run `flutter run -d chrome --dart-define=FORMA_API_BASE_URL=http://localhost:3001`. For Android emulator development, run `flutter run --dart-define=FORMA_API_BASE_URL=http://10.0.2.2:3001`. A normal Android APK contains no server address: on first launch, enter the URL of your own Forma instance, which is saved locally on the device. To make a personal APK with a default server, build with `--dart-define=FORMA_API_BASE_URL=https://your-host.example`. Native sessions use a persistent app-private cookie jar; Web uses the browser cookie store with credentialed requests.
 
-Build Web with `flutter build web --release`, Android with `flutter build apk --release`, or an Android App Bundle with `flutter build appbundle --release`. The multi-stage Docker build packages the Flutter Web bundle and serves it from the existing API origin; the React bundle remains available as a fallback if the Flutter output is absent. See [the migration inventory](docs/flutter-migration.md) for API mapping and data-preserving rollout details.
+Build Web with `flutter build web --release`, Android with `flutter build apk --release`, or an Android App Bundle with `flutter build appbundle --release`. The Docker image serves the Flutter Web bundle from the same origin as the API. The legacy React frontend has been removed. See [the architecture notes](docs/flutter-migration.md) for API and storage details.
 
 ---
 
@@ -34,7 +37,7 @@ Build Web with `flutter build web --release`, Android with `flutter build apk --
 - 📏 **Interactive Anatomical Body Map & Measurements Studio** — Visual SVG human silhouette with pulse pins across 13 anatomical sites (neck, chest, biceps, waist, hips, thighs, calves). Features real-time delta tooltips, direct site inspector, and quick session batch logger.
 - ⏱️ **Second-Level Timestamp Precision** — Body measurements and weight logs support exact time-of-day timestamps (`YYYY-MM-DDTHH:mm:ss`) with a dedicated time picker and "Now" button, empowering multiple distinct daily sessions (e.g. morning fasted vs. evening post-workout).
 - 🩺 **Cardiometabolic Health Risk Indicators** — Instant clinical risk evaluation for **Waist-to-Height Ratio (WHtR)** (*"keep your waist under half your height"*) and **Waist-to-Hip Ratio (WHR)** with WHO risk gauges.
-- ⏱️ **Fasting Tracker & Biological Stage Engine** — Real-time countdown timer supporting intermittent (16:8, 18:6, 20:4, 24:0) and extended fasting (36h, 48h, 72h+). Dynamically highlights the **7 Biological Stages of Fasting** (Fed, Post-Absorptive, Fat Burn, Metabolic Switch & Ketosis, Autophagy, HGH Surge, and Stem Cell Reset) with live physiological notes.
+- ⏱️ **Fasting Tracker** — Real-time timer, target progress, history, and an educational timeline of common fasting windows. The app reports elapsed time; it does not measure biological processes.
 - 🥗 **Macro Planning & Nutrition Engine** — Evidence-based nutritional macro engine calculating BMR (Mifflin-St Jeor), maintenance TDEE, and daily macro gram allocations across 6 Diet Archetypes (High-Protein/Low-Carb, Keto, Balanced, Mediterranean, Carnivore, and Custom).
 - 🧬 **Clinical Over-80kg Ideal Weight Protocol** — If scale weight exceeds 80 kg, protein requirements automatically calculate from the user's **Max Ideal Weight** (BMI 24.9 ceiling) to optimize lean mass retention while avoiding excessive caloric load.
 - 🧙 **Modern Multi-Step Onboarding Wizard** — Guided setup experience for both registration and first-run profile creation, collecting credentials, full name, biological sex, height, weight, and initial targets with smooth transitions and validation.
@@ -51,50 +54,6 @@ Build Web with `flutter build web --release`, Android with `flutter build apk --
 - 💎 **Refined Glassmorphism** — Translucent blurred surfaces, high-contrast dark and light modes, smooth transitions, and tabular numeral typography.
 - 🔒 **Privacy-First & Self-Hosted** — 100% self-contained SQLite WAL database, Argon2id encryption, secure session cookies, zero external telemetry, zero third-party cloud calls.
 - 💾 **Data Portability** — Complete JSON database backups and CSV spreadsheets for weight and measurement records.
-
----
-
-## 📸 Visual Showcase
-
-> 🌟 **Want to see every screen in high resolution? View the [Complete Screenshot Gallery (SCREENSHOTS.md)](SCREENSHOTS.md) for full intel on all 9 screens.**
-
-### 📊 1. Unified Dashboard & Clinical Vitals
-> Interactive time-series trends, WHO BMI brackets, US Navy body fat percentage, cardiometabolic risk ratios (WHtR & WHR), active fasting window, and daily nutrition targets.
-
-<div align="center">
-  <img src="screenshots/01-dashboard-overview.png" alt="Forma Dashboard Overview" width="920" style="border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.3);">
-</div>
-
----
-
-### 📏 2. Body Measurements Studio & Anatomical Silhouette
-> Interactive human silhouette map with pulse pins, direct site inspector, baseline delta calculations, cardiometabolic health ratio cards, and quick batch logging with second-level timestamps.
-
-<div align="center">
-  <img src="screenshots/05-measurements-studio-silhouette.png" alt="Body Measurements Studio" width="920" style="border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.3);">
-</div>
-
----
-
-### ⏱️ 3. Fasting Tracker & 7-Stage Biological Engine
-> Live fasting clock, remaining target countdown, and real-time biological transitions from early glycogen depletion into ketosis, peak autophagy, and stem cell regeneration.
-
-<div align="center">
-  <img src="screenshots/02-fasting-tracker.png" alt="Fasting Tracker & Biology" width="920" style="border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.3);">
-</div>
-
----
-
-### 🥗 4. Macro Planning & Nutrition Engine
-> Scientific TDEE and BMR calculation, 6 diet archetypes (High-Protein / Low-Carb by default), clinical Over-80kg Ideal Weight protocol, and single-tap daily intake tracking.
-
-<div align="center">
-  <img src="screenshots/03-macro-nutrition-engine.png" alt="Macro Planning & Nutrition Engine" width="920" style="border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.3);">
-</div>
-
----
-
-👉 *See [SCREENSHOTS.md](SCREENSHOTS.md) for Weight Logging, Goals & Trajectory, Progress Photos, Admin Settings, and Data Portability.*
 
 ---
 
@@ -302,7 +261,7 @@ forma.yourdomain.com {
 - Node.js 22+
 - npm 10+
 
-```bash
+```powershell
 # 1. Clone the repository
 git clone https://github.com/dhruvcx-1/Forma.git
 cd Forma
@@ -310,16 +269,21 @@ cd Forma
 # 2. Install dependencies
 npm install
 
-# 3. (Optional) Seed realistic demo user data (demo / password123)
-npm run db:seed --workspace=packages/backend
+# 3. (Optional) Use an isolated local database before seeding demo data.
+# Never run the seed command against a database containing real user data.
+$env:DATABASE_PATH="packages/backend/data/demo.db"
+npm run db:seed
 
-# 4. Start development servers concurrently (Fastify on 3001, Vite on 5173)
+# 4. Start the API in this terminal
 npm run dev
 
-# 5. Run automated test suite
-npm test
+# 5. In another terminal, start Flutter Web
+cd packages/flutter_app
+flutter pub get
+flutter run -d chrome --dart-define=FORMA_API_BASE_URL=http://localhost:3001
 
-# 6. Build production bundle
+# Run backend checks/build from the repository root when needed
+npm test
 npm run build
 ```
 
@@ -329,12 +293,11 @@ npm run build
 
 | Layer | Technologies |
 |---|---|
-| **Frontend** | React 18, TypeScript, Vite, Tailwind CSS, shadcn/ui primitives |
-| **Data Viz** | Recharts, Custom SVG circular progress meters, Lucide Icons |
-| **Animation** | Framer Motion (Motion for React) |
+| **Frontend** | Flutter, Dart, Material 3 |
+| **Data Viz** | `fl_chart`, custom Flutter charts and body map |
 | **Backend** | Node.js 22, Fastify, TypeScript, Zod |
 | **Database** | SQLite via `better-sqlite3` with Write-Ahead Logging (WAL) |
-| **Testing** | Vitest |
+| **Testing** | Vitest (backend), Flutter analyzer and widget tests |
 | **Deployment** | Multi-stage Docker, Docker Compose, GitHub Actions (GHCR) |
 
 ---

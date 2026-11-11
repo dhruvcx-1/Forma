@@ -142,22 +142,19 @@ fastify.setErrorHandler((error, request, reply) => {
 // Static file serving for production SPA
 // ---------------------------------------------------------------------------
 
-const possibleFrontendDirs = [
+const possibleWebDirs = [
   path.resolve('./packages/flutter_app/build/web'),
   path.resolve('../flutter_app/build/web'),
-  path.resolve('./packages/frontend/dist'),
-  path.resolve('../frontend/dist'),
-  path.resolve('./dist/frontend'),
   path.resolve('./public'),
 ];
-export const frontendDist = possibleFrontendDirs.find(
+export const webDist = possibleWebDirs.find(
   (d) => fs.existsSync(d) && fs.existsSync(path.join(d, 'index.html')),
 );
 
-if (frontendDist) {
-  fastify.log.info({ path: frontendDist }, 'Mounted frontend SPA static assets');
+if (webDist) {
+  fastify.log.info({ path: webDist }, 'Mounted Flutter Web static assets');
   await fastify.register(fastifyStatic, {
-    root: frontendDist,
+    root: webDist,
     prefix: '/',
     wildcard: false,
   });

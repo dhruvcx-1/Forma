@@ -1,29 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # ============================================================
-# Stage 1: Build frontend
-# ============================================================
-FROM node:22-alpine AS frontend-builder
-
-WORKDIR /build
-
-# Copy workspace manifests for caching
-COPY package.json package-lock.json* ./
-COPY packages/frontend/package.json ./packages/frontend/
-COPY packages/backend/package.json ./packages/backend/
-
-# Install all deps (including workspace hoisted)
-RUN npm ci --ignore-scripts
-
-# Copy frontend source
-COPY packages/frontend ./packages/frontend
-
-# Build
-WORKDIR /build/packages/frontend
-RUN npm run build
-
-# ============================================================
-# Stage 2: Build backend
+# Stage 1: Build backend
 # ============================================================
 FROM node:22-alpine AS backend-builder
 
@@ -31,8 +9,6 @@ WORKDIR /build
 
 COPY package.json package-lock.json* ./
 COPY packages/backend/package.json ./packages/backend/
-COPY packages/frontend/package.json ./packages/frontend/
-
 RUN npm ci --ignore-scripts
 
 COPY packages/backend ./packages/backend
@@ -41,7 +17,7 @@ WORKDIR /build/packages/backend
 RUN npm run build
 
 # ============================================================
-# Stage 3: Build the shared Flutter Web frontend
+# Stage 2: Build the shared Flutter Web frontend
 # ============================================================
 # Flutter Web output is architecture-independent, so build it on BuildKit's
 # native build platform and copy the static bundle into each runtime image.
@@ -63,7 +39,7 @@ COPY packages/flutter_app ./
 RUN flutter build web --release
 
 # ============================================================
-# Stage 4: Production runtime
+# Stage 3: Production runtime
 # ============================================================
 FROM node:22-alpine AS runtime
 
@@ -75,13 +51,10 @@ WORKDIR /app
 # Install production backend deps only
 COPY package.json package-lock.json* ./
 COPY packages/backend/package.json ./packages/backend/
-COPY packages/frontend/package.json ./packages/frontend/
-
 RUN npm ci --omit=dev --ignore-scripts --workspace=packages/backend
 
 # Copy built artifacts
 COPY --from=backend-builder /build/packages/backend/dist ./packages/backend/dist
-COPY --from=frontend-builder /build/packages/frontend/dist ./packages/frontend/dist
 COPY --from=flutter-web-builder /build/packages/flutter_app/build/web ./packages/flutter_app/build/web
 
 # Create data directories with correct ownership
