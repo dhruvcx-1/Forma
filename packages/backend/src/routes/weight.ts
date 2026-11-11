@@ -202,17 +202,19 @@ const weightRoutes: FastifyPluginAsync = async (fastify) => {
 
       const val = result.data.value ?? result.data.weight!;
       const unit = result.data.unit ?? 'kg';
-      const recorded_at = (result.data.recorded_at ?? result.data.date!).split('T')[0];
+      // Keep the full timestamp so a profile can log multiple entries per day.
+      // Date-only values remain supported for older clients and imported data.
+      const recorded_at = result.data.recorded_at ?? result.data.date!;
       const notes = result.data.notes;
       const profileId = request.profile!.id;
 
-      // Check for duplicate date
+      // Exact timestamps must be unique, while multiple times on one day are valid.
       const existing = db
         .prepare('SELECT * FROM weight_entries WHERE profile_id = ? AND recorded_at = ?')
         .get(profileId, recorded_at) as WeightRow | undefined;
 
       if (existing) {
-        return reply.code(409).send({ error: 'Entry already exists for this date', existing });
+        return reply.code(409).send({ error: 'Entry already exists for this date and time', existing });
       }
 
       const id = nanoid();
@@ -256,13 +258,13 @@ const weightRoutes: FastifyPluginAsync = async (fastify) => {
 
       const updates = result.data;
 
-      // Check date uniqueness if changing recorded_at
+      // Check timestamp uniqueness if changing recorded_at.
       if (updates.recorded_at && updates.recorded_at !== existing.recorded_at) {
         const conflict = db
           .prepare('SELECT id FROM weight_entries WHERE profile_id = ? AND recorded_at = ? AND id != ?')
           .get(profileId, updates.recorded_at, id);
         if (conflict) {
-          return reply.code(409).send({ error: 'Another entry already exists for this date' });
+          return reply.code(409).send({ error: 'Another entry already exists for this date and time' });
         }
       }
 

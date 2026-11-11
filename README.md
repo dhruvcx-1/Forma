@@ -35,7 +35,7 @@ Forma brings everything together in a single, thoughtfully designed application.
 
 | Feature | What you get |
 |---|---|
-| ⚖️ **Weight Tracking** | Record your weight, explore historical trends, and visualize your journey. |
+| ⚖️ **Weight Tracking** | Record multiple weigh-ins per day with date and time, explore historical trends, and visualize your journey. |
 | 📏 **Body Measurements** | Track body dimensions, monitor changes, and understand body composition estimates. |
 | 🎯 **Goals & Milestones** | Set your target weight, follow your progress, and celebrate milestones. |
 | 🥗 **Nutrition Tracking** | Set daily calorie and macronutrient targets and log your nutrition. |

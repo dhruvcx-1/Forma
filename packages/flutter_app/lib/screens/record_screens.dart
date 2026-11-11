@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -31,13 +32,21 @@ class _WeightScreenState extends State<WeightScreen> {
     final value = TextEditingController(
         text: entry == null ? '' : str(entry['value'] ?? entry['weight'], ''));
     final notes = TextEditingController(text: str(entry?['notes'], ''));
+    final rawRecordedAt = str(entry?['recorded_at'] ?? entry?['date'], '');
+    final currentTime = TimeOfDay.now();
+    final storedTime =
+        rawRecordedAt.contains('T') ? rawRecordedAt.split('T').last : '';
     final date = TextEditingController(
-        text: str(entry?['recorded_at'] ?? entry?['date'], today())
-            .split('T')
-            .first);
+        text: rawRecordedAt.isEmpty ? today() : rawRecordedAt.split('T').first);
+    final time = TextEditingController(
+        text: storedTime.length >= 5
+            ? storedTime.substring(0, 5)
+            : entry == null
+                ? '${currentTime.hour.toString().padLeft(2, '0')}:${currentTime.minute.toString().padLeft(2, '0')}'
+                : '');
     var unit = str(entry?['unit'], 'kg');
     final form = GlobalKey<FormState>();
-    final result = await showDialog<(String, String, String, String)?>(
+    final result = await showDialog<(String, String, String, String, String)?>(
         context: context,
         builder: (context) => StatefulBuilder(
             builder: (context, setDialog) => AlertDialog(
@@ -62,16 +71,84 @@ class _WeightScreenState extends State<WeightScreen> {
                             const SizedBox(height: 10),
                             Row(children: [
                               Expanded(
-                                  child: TextFormField(
-                                      controller: date,
-                                      decoration: const InputDecoration(
-                                          labelText: 'Date (YYYY-MM-DD)'),
-                                      validator: (v) =>
-                                          DateTime.tryParse(v ?? '') == null
-                                              ? 'Enter a valid date'
-                                              : null)),
-                              const SizedBox(width: 10),
-                              DropdownButton<String>(
+                                child: TextFormField(
+                                  controller: date,
+                                  readOnly: true,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Date',
+                                    suffixIcon: Icon(Icons.calendar_today),
+                                  ),
+                                  onTap: () async {
+                                    final initial =
+                                        DateTime.tryParse(date.text) ??
+                                            DateTime.now();
+                                    final selected = await showDatePicker(
+                                      context: context,
+                                      initialDate: initial,
+                                      firstDate: DateTime(1900),
+                                      lastDate: DateTime(2100),
+                                    );
+                                    if (selected != null) {
+                                      setDialog(() => date.text =
+                                          '${selected.year.toString().padLeft(4, '0')}-${selected.month.toString().padLeft(2, '0')}-${selected.day.toString().padLeft(2, '0')}');
+                                    }
+                                  },
+                                  validator: (v) =>
+                                      DateTime.tryParse(v ?? '') == null
+                                          ? 'Choose a valid date'
+                                          : null,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: TextFormField(
+                                  controller: time,
+                                  readOnly: true,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Time',
+                                    suffixIcon: Icon(Icons.schedule),
+                                  ),
+                                  onTap: () async {
+                                    final parts = time.text.split(':');
+                                    final selected = await showTimePicker(
+                                      context: context,
+                                      initialTime: parts.length == 2
+                                          ? TimeOfDay(
+                                              hour: int.tryParse(parts[0]) ??
+                                                  currentTime.hour,
+                                              minute: int.tryParse(parts[1]) ??
+                                                  currentTime.minute,
+                                            )
+                                          : currentTime,
+                                    );
+                                    if (selected != null) {
+                                      setDialog(() => time.text =
+                                          '${selected.hour.toString().padLeft(2, '0')}:${selected.minute.toString().padLeft(2, '0')}');
+                                    }
+                                  },
+                                  validator: (v) {
+                                    final parts = (v ?? '').split(':');
+                                    final hour = parts.length == 2
+                                        ? int.tryParse(parts[0])
+                                        : null;
+                                    final minute = parts.length == 2
+                                        ? int.tryParse(parts[1])
+                                        : null;
+                                    return hour == null ||
+                                            minute == null ||
+                                            hour < 0 ||
+                                            hour > 23 ||
+                                            minute < 0 ||
+                                            minute > 59
+                                        ? 'Choose a valid time'
+                                        : null;
+                                  },
+                                ),
+                              ),
+                            ]),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: DropdownButton<String>(
                                   value: unit,
                                   items: const [
                                     DropdownMenuItem(
@@ -80,8 +157,8 @@ class _WeightScreenState extends State<WeightScreen> {
                                         value: 'lbs', child: Text('lbs'))
                                   ],
                                   onChanged: (v) =>
-                                      setDialog(() => unit = v ?? 'kg'))
-                            ]),
+                                      setDialog(() => unit = v ?? 'kg')),
+                            ),
                             const SizedBox(height: 10),
                             TextField(
                                 controller: notes,
@@ -95,8 +172,13 @@ class _WeightScreenState extends State<WeightScreen> {
                     FilledButton(
                         onPressed: () {
                           if (form.currentState!.validate()) {
-                            Navigator.pop(context,
-                                (value.text, date.text, unit, notes.text));
+                            Navigator.pop(context, (
+                              value.text,
+                              date.text,
+                              time.text,
+                              unit,
+                              notes.text
+                            ));
                           }
                         },
                         child: const Text('Save'))
@@ -106,9 +188,9 @@ class _WeightScreenState extends State<WeightScreen> {
     try {
       final payload = {
         'value': numVal(result.$1),
-        'unit': result.$3,
-        'recorded_at': result.$2,
-        'notes': result.$4
+        'unit': result.$4,
+        'recorded_at': '${result.$2}T${result.$3}:00',
+        'notes': result.$5
       };
       if (entry == null) {
         await widget.api.post('/weight', payload);
@@ -120,6 +202,39 @@ class _WeightScreenState extends State<WeightScreen> {
       await snack(context, 'Weight saved');
     } catch (e) {
       if (!mounted) return;
+      if (entry == null && e is DioException && e.response?.statusCode == 409) {
+        final response = asJson(e.response?.data);
+        final existing = asJson(response['existing']);
+        final existingDate = str(existing['recorded_at'] ?? existing['date'],
+            '${result.$2}T${result.$3}:00');
+        final existingValue = numVal(existing['value'] ?? existing['weight']);
+        final existingUnit = str(existing['unit'], result.$4);
+        final editExisting = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Weight already logged'),
+            content: Text(
+              'There is already an entry for ${displayDate(existingDate)} '
+              '(${existingValue.toStringAsFixed(1)} $existingUnit). '
+              'Would you like to edit that entry instead?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Keep existing'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text('Edit existing'),
+              ),
+            ],
+          ),
+        );
+        if (editExisting == true && existing.isNotEmpty && mounted) {
+          await _add(entry: existing);
+        }
+        return;
+      }
       await showFormaError(context, e);
     }
   }
@@ -146,7 +261,8 @@ class _WeightScreenState extends State<WeightScreen> {
             padding: const EdgeInsets.fromLTRB(20, 22, 20, 28),
             children: [
               PageHeading('Weight',
-                  subtitle: 'Track your trend with precise daily entries.',
+                  subtitle:
+                      'Track your trend with multiple time-stamped entries per day.',
                   trailing: FilledButton.icon(
                       onPressed: _add,
                       icon: const Icon(Icons.add),
