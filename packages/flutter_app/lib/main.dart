@@ -99,68 +99,91 @@ class _ServerSetupGateState extends State<_ServerSetupGate> {
         theme: FormaTheme.light,
         darkTheme: FormaTheme.dark,
         themeMode: ThemeMode.system,
-        home: Scaffold(
-          body: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 520),
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(28),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(Icons.hub_outlined,
-                            size: 36,
-                            color: Theme.of(context).colorScheme.primary),
-                        const SizedBox(height: 18),
-                        Text('Connect to your Forma server',
-                            style: Theme.of(context)
-                                .textTheme
-                                .headlineSmall
-                                ?.copyWith(fontWeight: FontWeight.w700)),
-                        const SizedBox(height: 8),
-                        Text(
-                            'Enter the address of the Forma instance you want to use. Your server address stays on this device.',
-                            style: Theme.of(context).textTheme.bodyMedium),
-                        const SizedBox(height: 22),
-                        TextField(
-                          controller: _url,
-                          keyboardType: TextInputType.url,
-                          autocorrect: false,
-                          enableSuggestions: false,
-                          onSubmitted: (_) => _connecting ? null : _connect(),
-                          decoration: const InputDecoration(
-                              labelText: 'Server URL',
-                              hintText: 'https://forma.example.com',
-                              prefixIcon: Icon(Icons.link)),
-                        ),
-                        if (_error != null) ...[
-                          const SizedBox(height: 12),
-                          Text(_error!,
-                              style: TextStyle(
-                                  color: Theme.of(context).colorScheme.error)),
-                        ],
-                        const SizedBox(height: 18),
-                        SizedBox(
-                          width: double.infinity,
-                          child: FilledButton.icon(
-                            onPressed: _connecting ? null : _connect,
-                            icon: _connecting
-                                ? const SizedBox(
-                                    width: 18,
-                                    height: 18,
-                                    child: CircularProgressIndicator(
-                                        strokeWidth: 2))
-                                : const Icon(Icons.arrow_forward),
-                            label: Text(_connecting
-                                ? 'Connecting…'
-                                : 'Connect to server'),
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: SafeArea(
+              child: LayoutBuilder(
+                builder: (context, constraints) => SingleChildScrollView(
+                  padding: const EdgeInsets.all(24),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: (constraints.maxHeight - 48)
+                          .clamp(0, double.infinity),
+                    ),
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 520),
+                        child: Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(28),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(Icons.hub_outlined,
+                                    size: 36,
+                                    color:
+                                        Theme.of(context).colorScheme.primary),
+                                const SizedBox(height: 18),
+                                Text(
+                                  'Connect to your Forma server',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .headlineSmall
+                                      ?.copyWith(fontWeight: FontWeight.w700),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Enter the address of the Forma instance you want to use. Your server address stays on this device.',
+                                  style: Theme.of(context).textTheme.bodyMedium,
+                                ),
+                                const SizedBox(height: 22),
+                                TextField(
+                                  controller: _url,
+                                  keyboardType: TextInputType.url,
+                                  autocorrect: false,
+                                  enableSuggestions: false,
+                                  onSubmitted: (_) =>
+                                      _connecting ? null : _connect(),
+                                  decoration: const InputDecoration(
+                                    labelText: 'Server URL',
+                                    hintText: 'https://forma.example.com',
+                                    prefixIcon: Icon(Icons.link),
+                                  ),
+                                ),
+                                if (_error != null) ...[
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    _error!,
+                                    style: TextStyle(
+                                      color:
+                                          Theme.of(context).colorScheme.error,
+                                    ),
+                                  ),
+                                ],
+                                const SizedBox(height: 18),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: FilledButton.icon(
+                                    onPressed: _connecting ? null : _connect,
+                                    icon: _connecting
+                                        ? const SizedBox(
+                                            width: 18,
+                                            height: 18,
+                                            child: CircularProgressIndicator(
+                                                strokeWidth: 2),
+                                          )
+                                        : const Icon(Icons.arrow_forward),
+                                    label: Text(_connecting
+                                        ? 'Connecting…'
+                                        : 'Connect to server'),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
