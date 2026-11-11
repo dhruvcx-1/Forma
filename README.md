@@ -1,313 +1,158 @@
 <div align="center">
-<img src="app.png" alt="Forma Logo" width="84" height="84" style="border-radius: 22px; box-shadow: 0 8px 30px rgba(124, 58, 237, 0.4);">
 
-# Forma — Premium Body Progress Tracker
+<img src="app.png" alt="Forma" width="84" height="84">
 
-<p align="center">
-  <strong>A premium, self-hosted body measurement and weight tracking web application.</strong><br>
-  Privacy-first, zero telemetry, no external accounts, refined glassmorphism design.
-</p>
+# Forma
 
-[![CI/CD Build & Publish](https://github.com/dhruvcx-1/Forma/actions/workflows/publish.yml/badge.svg)](https://github.com/dhruvcx-1/Forma/actions/workflows/publish.yml)
-![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
-![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)
-![Fastify](https://img.shields.io/badge/Fastify-v4-000000?logo=fastify&logoColor=white)
-![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
+**A self-hosted body progress tracker for the web and Android.**
+
+Track weight, measurements, nutrition, fasting, goals, and progress photos with a Flutter app and a Node.js API you host yourself.
+
+[![Build and publish](https://github.com/dhruvcx-1/Forma/actions/workflows/publish.yml/badge.svg)](https://github.com/dhruvcx-1/Forma/actions/workflows/publish.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Flutter](https://img.shields.io/badge/Flutter-Material%203-02569B?logo=flutter)](https://flutter.dev)
+[![Node.js](https://img.shields.io/badge/Node.js-22-339933?logo=node.js)](https://nodejs.org)
 
 </div>
 
-<p align="center">
-  <a href="screenshots.md">Explore the desktop and Android screenshot gallery →</a>
-</p>
-
 ![Forma mobile app showcase](screenshots/forma-mobile-showcase.png)
 
-> **Frontend:** the shared Flutter app in `packages/flutter_app` serves the Docker Web frontend and powers Android builds. The project publishes a host-configurable Android APK and a multi-architecture Docker image. Each self-hosted Web install connects to the API at its own origin. The app, API, SQLite database, and `/app/data` volume remain together; upgrades do not migrate or delete user data.
+See the [desktop and Android screenshot gallery](screenshots.md).
 
-## Flutter app (Web and Android)
+Forma is a Material 3 application built with Flutter. The same client runs in a browser and as a native Android app. A Node.js 22 and Fastify service provides the API, authentication, SQLite storage, and private photo storage. You run the server; each client connects to the Forma instance you choose.
 
-Install Flutter and Android Studio, then run `flutter pub get` from `packages/flutter_app`. To run Web locally, start the backend with `npm run dev --workspace=packages/backend`, then run `flutter run -d chrome --dart-define=FORMA_API_BASE_URL=http://localhost:3001`. For Android emulator development, run `flutter run --dart-define=FORMA_API_BASE_URL=http://10.0.2.2:3001`. A normal Android APK contains no server address: on first launch, enter the URL of your own Forma instance, which is saved locally on the device. To make a personal APK with a default server, build with `--dart-define=FORMA_API_BASE_URL=https://your-host.example`. Native sessions use a persistent app-private cookie jar; Web uses the browser cookie store with credentialed requests.
+## What you can do
 
-Build Web with `flutter build web --release`, Android with `flutter build apk --release`, or an Android App Bundle with `flutter build appbundle --release`. The Docker image serves the Flutter Web bundle from the same origin as the API. The legacy React frontend has been removed. See [the architecture notes](docs/flutter-migration.md) for API and storage details.
+- Record weight and body measurements, review history, trends, body composition estimates, and waist ratios.
+- Set a weight goal and follow progress and milestones.
+- Set nutrition targets and record daily calories and macronutrients.
+- Track fasting sessions, history, and elapsed time.
+- Store private progress photos and manage your profile and preferences.
+- Export or back up your records. An administrator can manage accounts and registration settings.
+- Use the app in a web browser or connect an Android app to your self-hosted server.
 
----
+BMI, body-fat, energy, and ratio values are estimates based on the information entered. Forma is a tracking tool, not a medical diagnostic service.
 
-## ✨ Features
+## Self-host with Docker
 
-- 📏 **Interactive Anatomical Body Map & Measurements Studio** — Visual SVG human silhouette with pulse pins across 13 anatomical sites (neck, chest, biceps, waist, hips, thighs, calves). Features real-time delta tooltips, direct site inspector, and quick session batch logger.
-- ⏱️ **Second-Level Timestamp Precision** — Body measurements and weight logs support exact time-of-day timestamps (`YYYY-MM-DDTHH:mm:ss`) with a dedicated time picker and "Now" button, empowering multiple distinct daily sessions (e.g. morning fasted vs. evening post-workout).
-- 🩺 **Cardiometabolic Health Risk Indicators** — Instant clinical risk evaluation for **Waist-to-Height Ratio (WHtR)** (*"keep your waist under half your height"*) and **Waist-to-Hip Ratio (WHR)** with WHO risk gauges.
-- ⏱️ **Fasting Tracker** — Real-time timer, target progress, history, and an educational timeline of common fasting windows. The app reports elapsed time; it does not measure biological processes.
-- 🥗 **Macro Planning & Nutrition Engine** — Evidence-based nutritional macro engine calculating BMR (Mifflin-St Jeor), maintenance TDEE, and daily macro gram allocations across 6 Diet Archetypes (High-Protein/Low-Carb, Keto, Balanced, Mediterranean, Carnivore, and Custom).
-- 🧬 **Clinical Over-80kg Ideal Weight Protocol** — If scale weight exceeds 80 kg, protein requirements automatically calculate from the user's **Max Ideal Weight** (BMI 24.9 ceiling) to optimize lean mass retention while avoiding excessive caloric load.
-- 🧙 **Modern Multi-Step Onboarding Wizard** — Guided setup experience for both registration and first-run profile creation, collecting credentials, full name, biological sex, height, weight, and initial targets with smooth transitions and validation.
-- ⚖️ **Weight Tracking & Trends** — Rapid daily weigh-in with ±0.1 step controls, 7-day moving averages, trend regression, and duplicate entry safeguards.
-- 🧬 **Body Composition** — Deterministic US Navy Hodgdon-Beckett circumference formula & WHO BMI classification with visible formula transparent assumptions.
-- 🎯 **Target Goals & Pacing** — SVG circular milestone visualizer, required weekly pace calculations, and estimated completion trajectories.
-- 📸 **Private Progress Photos** — Local filesystem storage (JPEG/PNG/WebP), timeline gallery by perspective (front/side/back), and side-by-side before/after comparison.
-- 👥 **Multi-User Architecture** — Full multi-user isolation with dedicated private data vaults for each account. First user is automatically assigned Admin privileges.
-- 📝 **Public Registration & Toggle** — Built-in `/register` page enabled by default, controllable dynamically via Admin Settings or the `ALLOW_REGISTRATION` env variable.
-- 🛡️ **Admin User Directory** — Dedicated server administration panel in Settings to manage user accounts, assign roles, and configure instance policies.
-- 👤 **Custom Profiles & Avatars** — Upload and manage personal avatar pictures with automatic cleanup, custom display names, and bio snippets.
-- 🌐 **Public Progress Showcase** — Opt-in public profile page (`/@username` or `/u/username`) to proudly share weight milestones, target goals, and trend charts without requiring visitors to log in. Circumferences, private notes, and photos remain strictly private.
-- 📱 **Adaptive Mobile UI & PWA** — Responsive bottom bar, quick top actions, and an expandable slide-over drawer for easy access on mobile devices, plus PWA installation on iOS/Android/Desktop.
-- 💎 **Refined Glassmorphism** — Translucent blurred surfaces, high-contrast dark and light modes, smooth transitions, and tabular numeral typography.
-- 🔒 **Privacy-First & Self-Hosted** — 100% self-contained SQLite WAL database, Argon2id encryption, secure session cookies, zero external telemetry, zero third-party cloud calls.
-- 💾 **Data Portability** — Complete JSON database backups and CSV spreadsheets for weight and measurement records.
+The published container includes the Node.js API and the Flutter Web build. It stores the SQLite database and uploaded photos in `/app/data`.
 
----
+### Run directly with Docker
 
-## 🚀 Quick Start with Docker
+This is the simplest option on a server or local machine with Docker:
 
-The deployment compose file pulls the Flutter-enabled Web frontend and Fastify API image published to GitHub Container Registry. It keeps the SQLite and photo volume and connects to the existing Traefik network.
-
-### Prerequisites
-- Docker and Docker Compose
-- An existing Docker network named `reverse-proxy` with Traefik attached
-- Minimum 512 MB RAM
-
-### Deploy in 2 Steps
-
-```bash
-# 1. Download docker-compose.yml and environment template
-curl -sO https://raw.githubusercontent.com/dhruvcx-1/Forma/master/docker-compose.yml
-curl -sO https://raw.githubusercontent.com/dhruvcx-1/Forma/master/.env.example
-cp .env.example .env
-
-# Edit .env: set FORMA_DOMAIN and PUBLIC_URL to your own domain, and set
-# COOKIE_SECRET to a random 32+ character string:
-# Linux/macOS:  openssl rand -hex 32
-# PowerShell:   [System.Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
-
-# 2. Pull and start the published Flutter-enabled image
-docker compose up -d
+```sh
+docker volume create forma_data
+docker run -d \
+  --name forma \
+  --restart unless-stopped \
+  -p 3001:3001 \
+  -e NODE_ENV=production \
+  -e PORT=3001 \
+  -e COOKIE_SECRET="replace-with-a-long-random-secret" \
+  -v forma_data:/app/data \
+  ghcr.io/dhruvcx-1/forma:latest
 ```
 
-Set `FORMA_DOMAIN` and `PUBLIC_URL` in `.env` to your own domain and public origin, and set `COOKIE_SECRET` to a random secret. Then open your chosen HTTPS domain through Traefik. Port `3001` is also published on the host for direct access; check the API at `http://localhost:3001/api/health` or `https://your-host.example/api/health`. On first launch, set up your instance's master profile. For direct host access without Traefik, remove the Traefik labels and network from the compose file, then use the machine's address and published port.
+Create a unique secret of at least 32 characters before deploying. Open `http://localhost:3001` on the host or `http://SERVER_ADDRESS:3001` on your network. For an internet-facing deployment, put Forma behind HTTPS using a reverse proxy, and use that HTTPS address in the Android app. The API health endpoint is `/api/health`.
 
-For local development from a cloned repository, use `docker compose -f docker-compose.dev.yml up --build`; it builds from source and serves the app at `http://localhost:8080`.
+The Compose file in this repository is configured for Traefik and expects an existing Docker network called `reverse-proxy`. Set `FORMA_DOMAIN`, `PUBLIC_URL`, and `COOKIE_SECRET` in `.env` before running `docker compose up -d`. If you do not use Traefik, use the Docker command above or adapt the Compose networking and labels for your reverse proxy. See [`.env.example`](.env.example) and [`docker-compose.yml`](docker-compose.yml).
 
----
+### Update and back up
 
-## 📂 Data Storage & Directory Options
+To update a Compose deployment, run `docker compose pull && docker compose up -d`. The `forma_data` volume contains the database and photos; back it up before upgrades and do not delete it when replacing the container. The [architecture notes](docs/flutter-migration.md) describe the storage locations and deployment boundary.
 
-Forma stores all persistent state inside `/app/data`:
+## Android app
 
-```text
-/app/data/
-├── body-tracker.db       # SQLite database (profiles, weights, measurements, goals, settings)
-├── body-tracker.db-wal   # SQLite Write-Ahead Log
-├── body-tracker.db-shm   # SQLite Shared Memory index
-└── photos/               # Uploaded progress photos and custom avatar pictures
-```
+Download the host-configurable APK from the [latest Android release](https://github.com/dhruvcx-1/Forma/releases/tag/android-latest). It does not include a server address. On first launch, enter the URL of your Forma server; the app saves that choice on the device. Use an HTTPS URL for a remote server. An APK can connect only to a server that the phone can reach.
 
-You can choose between two persistence options in `docker-compose.yml`:
+For your own APK with a default server address, build with `FORMA_API_BASE_URL` as described below. Treat this as a convenience: the address is part of that APK and can be inspected.
 
-### Option A: Named Docker Volume (Default)
-Docker manages the storage volume automatically under its volume directory:
-```yaml
-volumes:
-  - forma_data:/app/data
-```
-No manual directory creation or permission configuration needed.
+## Build and run from source
 
-### Option B: Local Host Directory Bind-Mount
-If you prefer having direct access to the database file and photos folder on your host machine (e.g., for direct snapshots, rsync, or off-site backups):
+### Requirements
 
-1. Create the data directory on your host:
-   ```bash
-   mkdir -p ./data/photos
-   ```
-2. In `docker-compose.yml`, uncomment the host directory bind mount and comment out the named volume:
-   ```yaml
-   volumes:
-     - ./data:/app/data
-     # - forma_data:/app/data
-   ```
-3. Start or restart the container:
-   ```bash
-   docker compose up -d
-   ```
-All database writes and uploaded photos will immediately be saved directly into `./data/` on your host machine.
+- Node.js 22 and npm
+- Flutter 3.47.9 (or a compatible stable SDK)
+- Android Studio and Android SDK only if building or running Android
 
----
+Install backend dependencies from the repository root:
 
-## ⚙️ Configuration
-
-All runtime options are managed via environment variables in `.env`:
-
-| Variable | Default | Purpose |
-|---|---|---|
-| `COOKIE_SECRET` | *(required)* | 32+ character random string for signing secure session cookies |
-| `ALLOW_REGISTRATION` | `true` | Enable or disable public user registration at `/register` |
-| `EXTERNAL_PORT` | `3001` | Host port exposed to your local network |
-| `PORT` | `3001` | Internal Node.js Fastify listener port |
-| `DATABASE_PATH` | `/app/data/body-tracker.db` | SQLite database file location inside container |
-| `PHOTOS_PATH` | `/app/data/photos` | Storage directory for progress photos |
-| `NODE_ENV` | `production` | Set to `production` or `development` |
-| `CORS_ORIGIN` | — | Retained for compatibility with existing deployment configurations |
-
----
-
-## 📦 Container Registry (GHCR)
-
-The production multi-arch image (`linux/amd64` and `linux/arm64`) is automatically built on every commit and hosted at:
-
-```bash
-ghcr.io/dhruvcx-1/forma:latest
-```
-
-### Pulling manually:
-```bash
-docker pull ghcr.io/dhruvcx-1/forma:latest
-```
-
-### Upgrading your container:
-```bash
-docker compose pull
-docker compose up -d --force-recreate
-```
-
----
-
-## 🔒 Security & Privacy Architecture
-
-- **No Remote Telemetry**: No Google Analytics, Segment, Sentry, or third-party trackers.
-- **Argon2id Hashing**: Password hashing uses the industry gold-standard memory-hard Argon2id algorithm.
-- **Session Tokens**: 30-day cryptographically random session tokens stored in SQLite and transmitted over `HttpOnly`, `SameSite=Strict` cookies.
-- **Auth-Gated Assets**: Uploaded progress photos are not exposed through public static directories; each request is authenticated before binary image streaming.
-- **Strict File Upload Constraints**: Uploads are restricted to JPEG, PNG, and WebP formats up to 10MB. Filenames are assigned randomized `nanoid` identifiers to prevent path traversal attacks.
-
----
-
-## 💾 Backup and Restoration
-
-### 1. Web UI Backup
-Visit the **Data** page in the application to download:
-- Full JSON backup archive
-- Weight History CSV
-- Circumference Measurements CSV
-
-### 2. Low-Level Docker Volume Backup
-To snapshot your database and progress photos simultaneously:
-
-```bash
-# Stop container for consistency
-docker compose stop
-
-# Archive volume to a tarball
-docker run --rm \
-  -v forma_data:/source \
-  -v $(pwd)/backups:/backup \
-  alpine tar czf /backup/forma-backup-$(date +%Y%m%d).tar.gz -C /source .
-
-# Restart container
-docker compose start
-```
-
-### Restoration:
-```bash
-docker compose stop
-
-docker run --rm \
-  -v forma_data:/target \
-  -v $(pwd)/backups:/backup \
-  alpine sh -c "cd /target && tar xzf /backup/forma-backup-YYYYMMDD.tar.gz"
-
-docker compose start
-```
-
----
-
-## 🌐 Reverse Proxy Configuration
-
-When exposing Forma to the public internet, place it behind a reverse proxy that terminates TLS (HTTPS).
-
-### Nginx Example:
-```nginx
-server {
-    listen 443 ssl http2;
-    server_name forma.yourdomain.com;
-
-    ssl_certificate /etc/letsencrypt/live/forma.yourdomain.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/forma.yourdomain.com/privkey.pem;
-
-    client_max_body_size 15M; # Support photo uploads
-
-    location / {
-        proxy_pass http://localhost:8080;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-```
-
-### Caddy Example:
-```caddy
-forma.yourdomain.com {
-    reverse_proxy localhost:8080
-}
-```
-
-> **Note**: Update `CORS_ORIGIN=https://forma.yourdomain.com` in your `.env` when deploying behind a domain.
-
----
-
-## 🛠️ Local Development
-
-### Prerequisites
-- Node.js 22+
-- npm 10+
-
-```powershell
-# 1. Clone the repository
-git clone https://github.com/dhruvcx-1/Forma.git
-cd Forma
-
-# 2. Install dependencies
-npm install
-
-# 3. (Optional) Use an isolated local database before seeding demo data.
-# Never run the seed command against a database containing real user data.
-$env:DATABASE_PATH="packages/backend/data/demo.db"
-npm run db:seed
-
-# 4. Start the API in this terminal
+```sh
+npm ci
 npm run dev
+```
 
-# 5. In another terminal, start Flutter Web
+In another terminal, start the Flutter Web client:
+
+```sh
 cd packages/flutter_app
 flutter pub get
 flutter run -d chrome --dart-define=FORMA_API_BASE_URL=http://localhost:3001
+```
 
-# Run backend checks/build from the repository root when needed
+For an Android emulator, use `http://10.0.2.2:3001` as the API address:
+
+```sh
+cd packages/flutter_app
+flutter run --dart-define=FORMA_API_BASE_URL=http://10.0.2.2:3001
+```
+
+For a physical phone, the development computer and phone must be able to reach each other; use the computer's LAN address or a reachable HTTPS server. Local HTTP is intended for development.
+
+### Build artifacts
+
+Run these commands from `packages/flutter_app`:
+
+```sh
+# Web bundle
+flutter build web --release
+
+# Android APK that asks for the server URL on first launch
+flutter build apk --release
+
+# Personal APK with a default server URL
+flutter build apk --release --dart-define=FORMA_API_BASE_URL=https://your-forma-host.example
+
+# Android App Bundle
+flutter build appbundle --release
+```
+
+The APK output is `build/app/outputs/flutter-apk/app-release.apk`. The Web bundle is `build/web`. The Docker build creates and packages the Web bundle automatically.
+
+## Development checks
+
+From the repository root:
+
+```sh
 npm test
 npm run build
 ```
 
----
+From `packages/flutter_app`:
 
-## 🧰 Technology Stack
+```sh
+flutter analyze
+flutter test
+```
 
-| Layer | Technologies |
+To populate a disposable local database with demo content, set `DATABASE_PATH` to a new file before starting the backend and run `npm run db:seed`. The seeder resets and repopulates the selected database. Never point it at a database containing real user data. Demo login: `demo` / `password123`.
+
+## How it is built
+
+| Part | Technology |
 |---|---|
-| **Frontend** | Flutter, Dart, Material 3 |
-| **Data Viz** | `fl_chart`, custom Flutter charts and body map |
-| **Backend** | Node.js 22, Fastify, TypeScript, Zod |
-| **Database** | SQLite via `better-sqlite3` with Write-Ahead Logging (WAL) |
-| **Testing** | Vitest (backend), Flutter analyzer and widget tests |
-| **Deployment** | Multi-stage Docker, Docker Compose, GitHub Actions (GHCR) |
+| Client | Flutter and Dart, using Material 3 |
+| Web and Android charts | `fl_chart` and custom Flutter widgets |
+| API | Node.js 22, Fastify, TypeScript, Zod |
+| Database | SQLite through `better-sqlite3`, with WAL |
+| Password hashing | Argon2id |
+| Packaging | Docker Compose and GitHub Actions |
 
----
+GitHub Actions validates the backend and Flutter app, builds a host-configurable Android APK, and publishes multi-architecture (`amd64` and `arm64`) Docker images to [GHCR](https://github.com/dhruvcx-1/Forma/pkgs/container/forma). The Android APK is also attached to the `android-latest` prerelease. A personal APK can be built in Actions only when the repository secret `FORMA_PERSONAL_API_BASE_URL` is configured; it is kept separate from the public release APK.
 
-## 📄 License
+More implementation details are in the [Flutter architecture notes](docs/flutter-migration.md). To connect another client to the server, use the HTTP API under `/api`; the health endpoint is `/api/health`.
 
-Licensed under the [MIT License](LICENSE). Built for self-hosters and privacy advocates.
+## License
 
----
-
-<div align="center">
-  <sub>Made with ❤️ by <strong>Dhruv Chaturvedi</strong>.</sub>
-</div>
+Forma is released under the [MIT License](LICENSE).
