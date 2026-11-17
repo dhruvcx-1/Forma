@@ -644,7 +644,7 @@ class _MeasurementsScreenState extends State<MeasurementsScreen> {
       return;
     }
     try {
-      await widget.api.post('/measurements/entries', {
+      await widget.api.postDynamic('/measurements/entries', {
         'entries': [
           {
             'definition_id': definition['id'],
@@ -716,7 +716,7 @@ class _MeasurementsScreenState extends State<MeasurementsScreen> {
                 ]));
     if (result == null) return;
     try {
-      await widget.api.post('/measurements/entries', {
+      await widget.api.postDynamic('/measurements/entries', {
         'entries': [
           {
             'definition_id': result.$1,
@@ -806,7 +806,7 @@ class _MeasurementsScreenState extends State<MeasurementsScreen> {
     );
     if (values == null) return;
     try {
-      await widget.api.post('/measurements/entries/batch', {
+      await widget.api.postDynamic('/measurements/entries/batch', {
         'entries': [
           for (final v in values)
             {'definition_id': v.$1, 'value': v.$2, 'recorded_at': v.$3}
