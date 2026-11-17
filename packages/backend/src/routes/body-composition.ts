@@ -241,32 +241,57 @@ const bodyCompositionRoutes: FastifyPluginAsync = async (fastify) => {
       // 7. Body Fat History Timeline (based on historical measurements or weight entries)
       const bodyFatHistory: Array<{ date: string; value: number; method: 'navy' | 'deurenberg' }> = [];
       if (heightCm) {
-        // If we have waist & neck measurement history:
+        // Build a daily timeline and carry the last known circumference forward.
+        // Measurements are often logged separately, so matching exact timestamps
+        // would leave the history empty unless waist, neck, and hips were saved
+        // in the same batch.
         const circumferenceRows = db
           .prepare(
             `SELECT me.recorded_at, me.value, md.slug
              FROM measurement_entries me
              JOIN measurement_definitions md ON md.id = me.definition_id
-             WHERE me.profile_id = ? AND md.slug IN ('waist', 'neck', 'hips')
-             ORDER BY me.recorded_at ASC`,
+             WHERE me.profile_id = ? AND md.slug IN ('waist', 'neck', 'hips', 'height')
+             ORDER BY me.recorded_at ASC, me.created_at ASC`,
           )
-          .all(profileId) as Array<{ recorded_at: string; value: number; slug: string }>;
+          .all(profileId) as Array<{
+          recorded_at: string;
+          value: number;
+          slug: string;
+        }>;
 
         const entriesByDate = new Map<string, Record<string, number>>();
         for (const row of circumferenceRows) {
-          if (!entriesByDate.has(row.recorded_at)) {
-            entriesByDate.set(row.recorded_at, {});
+          const date = row.recorded_at.split('T')[0];
+          if (!entriesByDate.has(date)) {
+            entriesByDate.set(date, {});
           }
-          entriesByDate.get(row.recorded_at)![row.slug] = row.value;
+          entriesByDate.get(date)![row.slug] = row.value;
         }
 
+        const latestValues: Record<string, number> = {};
         for (const [date, values] of entriesByDate.entries()) {
-          if (values.waist && values.neck) {
+          Object.assign(latestValues, values);
+          const historyHeightCm = latestValues.height ?? heightCmSetting;
+          if (
+            historyHeightCm &&
+            historyHeightCm > 0 &&
+            latestValues.waist &&
+            latestValues.neck
+          ) {
             if (sex === 'male') {
-              const val = navyBodyFatMale(values.waist, values.neck, heightCm);
+              const val = navyBodyFatMale(
+                latestValues.waist,
+                latestValues.neck,
+                historyHeightCm,
+              );
               bodyFatHistory.push({ date, value: val, method: 'navy' });
-            } else if (sex === 'female' && values.hips) {
-              const val = navyBodyFatFemale(values.waist, values.hips, values.neck, heightCm);
+            } else if (sex === 'female' && latestValues.hips) {
+              const val = navyBodyFatFemale(
+                latestValues.waist,
+                latestValues.hips,
+                latestValues.neck,
+                historyHeightCm,
+              );
               bodyFatHistory.push({ date, value: val, method: 'navy' });
             }
           }

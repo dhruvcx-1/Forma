@@ -19,7 +19,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   late Future<List<dynamic>> data;
   String historyRange = '30D';
-  String compositionRange = '90D';
+  String compositionRange = 'ALL';
   String compositionMode = 'BMI';
 
   @override

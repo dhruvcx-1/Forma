@@ -52,6 +52,9 @@ class ApiClient {
   Future<dynamic> postDynamic(String path, [Object? body]) async =>
       (await dio.post(path, data: body)).data;
 
+  Future<dynamic> putDynamic(String path, [Object? body]) async =>
+      (await dio.put(path, data: body)).data;
+
   Future<List<int>> getBytes(String path) async =>
       List<int>.from((await dio.get<List<int>>(path,
                   options: Options(responseType: ResponseType.bytes)))

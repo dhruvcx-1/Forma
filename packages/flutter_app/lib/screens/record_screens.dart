@@ -618,6 +618,10 @@ class _MeasurementsScreenState extends State<MeasurementsScreen> {
   String? selectedId;
   String view = 'studio';
   String historyQuery = '';
+  final Map<String, TextEditingController> _zoneInputs = {};
+  final zoneDate = TextEditingController(text: today());
+  bool _zoneNewSession = false;
+  bool _savingZoneBatch = false;
   final quickValue = TextEditingController();
   @override
   void initState() {
@@ -627,15 +631,98 @@ class _MeasurementsScreenState extends State<MeasurementsScreen> {
 
   @override
   void dispose() {
+    for (final controller in _zoneInputs.values) {
+      controller.dispose();
+    }
+    zoneDate.dispose();
     quickValue.dispose();
     super.dispose();
   }
 
-  void _load() => _data = Future.wait<dynamic>([
+  void _resetZoneInputs() {
+    for (final controller in _zoneInputs.values) {
+      controller.dispose();
+    }
+    _zoneInputs.clear();
+  }
+
+  TextEditingController _zoneController(String id, Json? latestEntry) =>
+      _zoneInputs.putIfAbsent(
+        id,
+        () => TextEditingController(
+          text: _zoneNewSession || latestEntry == null
+              ? ''
+              : numVal(latestEntry['value']).toString(),
+        ),
+      );
+
+  void _load() {
+    _resetZoneInputs();
+    _data = Future.wait<dynamic>([
         widget.api.getList('/measurements/definitions'),
         widget.api.getList('/measurements/entries'),
         widget.api.getMap('/body-composition')
       ]).then((v) => (asList(v[0]), asList(v[1]), asJson(v[2])));
+  }
+
+  Future<void> _saveZoneMeasurements(
+      List<Json> definitions, Map<String, Json> latest) async {
+    final batch = <Json>[];
+    for (final definition in definitions) {
+      final id = str(definition['id'], '');
+      final text = _zoneInputs[id]?.text.trim() ?? '';
+      if (text.isEmpty) continue;
+
+      final value = double.tryParse(text);
+      if (value == null || !value.isFinite || value <= 0) {
+        await snack(context,
+            'Enter a valid value greater than zero for ${str(definition['name'])}');
+        return;
+      }
+
+      final previous = latest[id];
+      if (!_zoneNewSession && previous != null) {
+        if ((value - numVal(previous['value'])).abs() < 0.0001) continue;
+        batch.add({'id': previous['id'], 'value': value});
+      } else {
+        batch.add({
+          'definition_id': id,
+          'value': value,
+          'recorded_at': zoneDate.text.trim(),
+        });
+      }
+    }
+
+    if (batch.isEmpty) {
+      await snack(context, 'There are no measurement changes to save');
+      return;
+    }
+    if (batch.any((entry) => !entry.containsKey('id')) &&
+        DateTime.tryParse(zoneDate.text.trim()) == null) {
+      await snack(context, 'Enter a valid date for new measurements');
+      return;
+    }
+
+    setState(() => _savingZoneBatch = true);
+    try {
+      await widget.api
+          .putDynamic('/measurements/entries/batch', {'entries': batch});
+      if (!mounted) return;
+      _zoneNewSession = false;
+      zoneDate.text = today();
+      setState(() {
+        _savingZoneBatch = false;
+        _load();
+      });
+      await snack(context, 'Measurements saved');
+    } catch (e) {
+      if (mounted) await showFormaError(context, e);
+    } finally {
+      if (mounted && _savingZoneBatch) {
+        setState(() => _savingZoneBatch = false);
+      }
+    }
+  }
 
   Future<void> _saveQuick(Json definition) async {
     final value = double.tryParse(quickValue.text.trim());
@@ -1178,6 +1265,36 @@ class _MeasurementsScreenState extends State<MeasurementsScreen> {
                         ])),
                   ],
                 ] else if (view == 'zones') ...[
+                  SectionCard(
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                        Text('Measurement session',
+                            style: Theme.of(context).textTheme.titleMedium),
+                        const SizedBox(height: 8),
+                        TextField(
+                            controller: zoneDate,
+                            decoration: const InputDecoration(
+                                labelText: 'Date for new measurements',
+                                helperText:
+                                    'Existing records keep their original date when updated.')),
+                        const SizedBox(height: 4),
+                        Text(
+                            'Latest values are prefilled. Change any value to update it, or fill a blank site to add its first record.',
+                            style: Theme.of(context).textTheme.bodySmall),
+                        const SizedBox(height: 6),
+                        SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('Record as a new session'),
+                            subtitle: const Text(
+                                'Start with blank fields and add a new dated record for each value entered.'),
+                            value: _zoneNewSession,
+                            onChanged: (value) => setState(() {
+                                  _zoneNewSession = value;
+                                  _resetZoneInputs();
+                                })),
+                      ])),
+                  const SizedBox(height: 14),
                   for (final zone in [
                     'Core & torso',
                     'Upper body',
@@ -1214,28 +1331,74 @@ class _MeasurementsScreenState extends State<MeasurementsScreen> {
                                         .titleLarge
                                         ?.copyWith(
                                             fontWeight: FontWeight.w700)),
-                                const SizedBox(height: 8),
-                                for (final definition in zoneDefs)
-                                  ListTile(
-                                      contentPadding: EdgeInsets.zero,
-                                      leading: Icon(Icons.straighten,
-                                          color: Theme.of(context)
-                                              .colorScheme
-                                              .primary),
-                                      title: Text(str(definition['name'])),
-                                      subtitle: Text(latest[
-                                                  str(definition['id'])] ==
-                                              null
-                                          ? 'No measurement yet'
-                                          : '${numVal(latest[str(definition['id'])]!['value']).toStringAsFixed(1)} ${str(definition['unit'])} · ${displayDate(latest[str(definition['id'])]!['recorded_at'])}'),
-                                      trailing: const Icon(Icons.chevron_right),
-                                      onTap: () => setState(() {
-                                            selectedId = str(definition['id']);
-                                            view = 'studio';
-                                          })),
+                                const SizedBox(height: 12),
+                                LayoutBuilder(builder: (context, constraints) {
+                                  final columns = constraints.maxWidth >= 760
+                                      ? 3
+                                      : constraints.maxWidth >= 500
+                                          ? 2
+                                          : 1;
+                                  final fieldWidth = (constraints.maxWidth -
+                                          (columns - 1) * 12) /
+                                      columns;
+                                  return Wrap(
+                                      spacing: 12,
+                                      runSpacing: 12,
+                                      children: [
+                                        for (final definition in zoneDefs)
+                                          SizedBox(
+                                              width: fieldWidth,
+                                              child: TextField(
+                                                  controller: _zoneController(
+                                                      str(definition['id']),
+                                                      latest[str(definition[
+                                                          'id'])]),
+                                                  keyboardType:
+                                                      const TextInputType
+                                                          .numberWithOptions(
+                                                              decimal: true),
+                                                  decoration: InputDecoration(
+                                                      labelText: str(
+                                                          definition['name']),
+                                                      suffixText: str(
+                                                          definition['unit'])))),
+                                      ]);
+                                }),
                               ])));
                     }),
+                  const SizedBox(height: 4),
+                  FilledButton.icon(
+                      onPressed: _savingZoneBatch
+                          ? null
+                          : () => _saveZoneMeasurements(definitions, latest),
+                      icon: _savingZoneBatch
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2))
+                          : const Icon(Icons.save_outlined),
+                      label: Text(_savingZoneBatch
+                          ? 'Saving measurements…'
+                          : _zoneNewSession
+                              ? 'Save new session'
+                              : 'Update measurements')),
                 ] else ...[
+                  SectionCard(
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                        Text('Body measurement trends',
+                            style: Theme.of(context).textTheme.titleLarge),
+                        const SizedBox(height: 4),
+                        Text(
+                            'Timeline of every recorded body part. Sites with different units use separate charts.',
+                            style: Theme.of(context).textTheme.bodySmall),
+                        const SizedBox(height: 14),
+                        _MeasurementHistoryTabs(
+                            definitions: definitions, entries: entries),
+                      ])),
+                  const SizedBox(height: 14),
                   SectionCard(
                       child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1280,6 +1443,279 @@ class _MeasurementsScreenState extends State<MeasurementsScreen> {
               ]);
         });
       });
+}
+
+class _MeasurementTrendSeries {
+  const _MeasurementTrendSeries(
+      {required this.name, required this.color, required this.spots});
+
+  final String name;
+  final Color color;
+  final List<FlSpot> spots;
+}
+
+class _MeasurementHistoryTabs extends StatelessWidget {
+  const _MeasurementHistoryTabs(
+      {required this.definitions, required this.entries});
+
+  final List<Json> definitions;
+  final List<Json> entries;
+
+  @override
+  Widget build(BuildContext context) {
+    if (definitions.isEmpty) {
+      return _MeasurementTrendChart(
+          definitions: definitions, entries: entries);
+    }
+
+    final unitsWithEntries = <String>{};
+    for (final definition in definitions) {
+      final id = str(definition['id'], '');
+      if (entries.any((entry) => str(entry['definition_id'], '') == id)) {
+        unitsWithEntries.add(str(definition['unit'], 'units').toLowerCase());
+      }
+    }
+    final allChartHeight = unitsWithEntries.isEmpty
+        ? 360.0
+        : unitsWithEntries.length * 400.0;
+
+    return DefaultTabController(
+      length: definitions.length + 1,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TabBar(
+            isScrollable: true,
+            tabs: [
+              const Tab(text: 'All'),
+              for (final definition in definitions)
+                Tab(text: str(definition['name'], 'Measurement')),
+            ],
+          ),
+          SizedBox(
+            height: allChartHeight,
+            child: TabBarView(
+              children: [
+                _MeasurementTrendChart(
+                    definitions: definitions, entries: entries),
+                for (final definition in definitions)
+                  _MeasurementTrendChart(
+                    definitions: [definition],
+                    entries: entries
+                        .where((entry) =>
+                            str(entry['definition_id'], '') ==
+                            str(definition['id'], ''))
+                        .toList(),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MeasurementTrendChart extends StatelessWidget {
+  const _MeasurementTrendChart(
+      {required this.definitions, required this.entries});
+
+  final List<Json> definitions;
+  final List<Json> entries;
+
+  static const _colors = <Color>[
+    Color(0xff3867d6),
+    Color(0xffe17055),
+    Color(0xff00a878),
+    Color(0xff9b59b6),
+    Color(0xffe1a700),
+    Color(0xff0984e3),
+    Color(0xffd63031),
+    Color(0xff00a8a8),
+    Color(0xff6c5ce7),
+    Color(0xffc44569),
+    Color(0xff2d8a4e),
+    Color(0xff7f8c8d),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final seriesByUnit = <String, List<_MeasurementTrendSeries>>{};
+    final unitLabels = <String, String>{};
+    var colorIndex = 0;
+
+    for (final definition in definitions) {
+      final definitionId = str(definition['id'], '');
+      final unit = str(definition['unit'], 'units');
+      final unitKey = unit.toLowerCase();
+      final points = entries
+          .where((entry) => str(entry['definition_id'], '') == definitionId)
+          .map((entry) {
+            final recordedAt = DateTime.tryParse(
+                str(entry['recorded_at'] ?? entry['date'], ''));
+            if (recordedAt == null) return null;
+            return FlSpot(
+                recordedAt.toLocal().millisecondsSinceEpoch.toDouble(),
+                numVal(entry['value']));
+          })
+          .whereType<FlSpot>()
+          .toList()
+        ..sort((a, b) => a.x.compareTo(b.x));
+      if (points.isEmpty) continue;
+
+      final color = _colors[colorIndex % _colors.length];
+      colorIndex++;
+      unitLabels.putIfAbsent(unitKey, () => unit);
+      seriesByUnit.putIfAbsent(unitKey, () => []).add(
+            _MeasurementTrendSeries(
+                name: str(definition['name'], 'Measurement'),
+                color: color,
+                spots: points),
+          );
+    }
+
+    if (seriesByUnit.isEmpty) {
+      return emptyMessage(context, 'No measurements to chart',
+          'Record a body measurement to start a trend.');
+    }
+
+    return Column(
+      children: [
+        for (final unitKey in seriesByUnit.keys) ...[
+          if (seriesByUnit.length > 1) ...[
+            Align(
+                alignment: Alignment.centerLeft,
+                child: Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Text('Measurements in ${unitLabels[unitKey]}',
+                        style: Theme.of(context).textTheme.titleSmall))),
+          ],
+          SizedBox(
+            height: 280,
+            child: _MeasurementTrendUnitChart(
+                series: seriesByUnit[unitKey]!, unit: unitLabels[unitKey]!),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 14,
+            runSpacing: 8,
+            children: [
+              for (final series in seriesByUnit[unitKey]!)
+                Row(mainAxisSize: MainAxisSize.min, children: [
+                  Container(
+                      width: 14,
+                      height: 3,
+                      decoration: BoxDecoration(
+                          color: series.color,
+                          borderRadius: BorderRadius.circular(2))),
+                  const SizedBox(width: 6),
+                  Text(series.name,
+                      style: Theme.of(context).textTheme.labelSmall),
+                ]),
+            ],
+          ),
+          const SizedBox(height: 18),
+        ],
+      ],
+    );
+  }
+}
+
+class _MeasurementTrendUnitChart extends StatelessWidget {
+  const _MeasurementTrendUnitChart({required this.series, required this.unit});
+
+  final List<_MeasurementTrendSeries> series;
+  final String unit;
+
+  @override
+  Widget build(BuildContext context) {
+    final allSpots = series.expand((line) => line.spots).toList();
+    final minX = allSpots
+        .map((spot) => spot.x)
+        .reduce((a, b) => a < b ? a : b);
+    final maxX = allSpots
+        .map((spot) => spot.x)
+        .reduce((a, b) => a > b ? a : b);
+    final minY = allSpots
+        .map((spot) => spot.y)
+        .reduce((a, b) => a < b ? a : b);
+    final maxY = allSpots
+        .map((spot) => spot.y)
+        .reduce((a, b) => a > b ? a : b);
+    const oneDayMs = 86400000.0;
+    final xRange = maxX - minX;
+    final chartMinX = xRange == 0 ? minX - oneDayMs : minX;
+    final chartMaxX = xRange == 0 ? maxX + oneDayMs : maxX;
+    final chartXRange = chartMaxX - chartMinX;
+    final yRange = maxY - minY;
+    final yPadding = yRange == 0
+        ? (maxY.abs() * .05).clamp(.5, 2.0).toDouble()
+        : yRange * .12;
+
+    return LineChart(LineChartData(
+      minX: chartMinX,
+      maxX: chartMaxX,
+      minY: minY - yPadding,
+      maxY: maxY + yPadding,
+      gridData: FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          getDrawingHorizontalLine: (_) => FlLine(
+              color: Theme.of(context).dividerColor.withValues(alpha: .2),
+              dashArray: [4, 5])),
+      borderData: FlBorderData(show: false),
+      titlesData: FlTitlesData(
+        topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+        rightTitles:
+            const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+        leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+                showTitles: true,
+                reservedSize: 48,
+                getTitlesWidget: (value, _) => Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: Text(value.toStringAsFixed(1),
+                        style: Theme.of(context).textTheme.labelSmall)))),
+        bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+                showTitles: true,
+                reservedSize: 32,
+                interval: chartXRange / 4,
+                getTitlesWidget: (value, meta) {
+                  final date = DateTime.fromMillisecondsSinceEpoch(
+                          value.round())
+                      .toLocal();
+                  return SideTitleWidget(
+                      axisSide: meta.axisSide,
+                      child: Text('${date.month}/${date.day}',
+                          style: Theme.of(context).textTheme.labelSmall));
+                })),
+      ),
+      lineTouchData: LineTouchData(
+          touchTooltipData: LineTouchTooltipData(
+              getTooltipItems: (spots) => spots.map((spot) {
+                    final date = DateTime.fromMillisecondsSinceEpoch(
+                            spot.x.round())
+                        .toLocal();
+                    final name = series[spot.barIndex].name;
+                    return LineTooltipItem(
+                        '$name\n${spot.y.toStringAsFixed(1)} $unit · ${date.month}/${date.day}/${date.year}',
+                        const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600));
+                  }).toList())),
+      lineBarsData: [
+        for (final line in series)
+          LineChartBarData(
+              spots: line.spots,
+              isCurved: false,
+              barWidth: 2.5,
+              color: line.color,
+              dotData: FlDotData(show: line.spots.length <= 20),
+              belowBarData: BarAreaData(show: false)),
+      ],
+    ));
+  }
 }
 
 class _RatioInsightCard extends StatelessWidget {

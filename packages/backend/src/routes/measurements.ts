@@ -35,6 +35,22 @@ const UpdateEntrySchema = z.object({
   notes: z.string().max(500).nullable().optional(),
 });
 
+const BatchUpsertEntrySchema = z
+  .object({
+    id: z.string().optional(),
+    definition_id: z.string().optional(),
+    value: z.number(),
+    recorded_at: z.string().optional(),
+    date: z.string().optional(),
+  })
+  .refine((entry) => Boolean(entry.id || entry.definition_id), {
+    message: 'Each entry needs an id to update or a definition_id to create.',
+  });
+
+const BatchUpsertSchema = z.object({
+  entries: z.array(BatchUpsertEntrySchema).min(1).max(100),
+});
+
 const ListEntriesQuerySchema = z.object({
   definition_id: z.string().optional(),
   from: z.string().optional(),
@@ -394,6 +410,85 @@ const measurementsRoutes: FastifyPluginAsync = async (fastify) => {
     '/api/measurements/entries/batch',
     { preHandler: requireAuth },
     handleBatchCreateEntries,
+  );
+
+  /**
+   * PUT /api/measurements/entries/batch
+   * Atomically update existing entries and create entries for unrecorded sites.
+   */
+  fastify.put(
+    '/api/measurements/entries/batch',
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const result = BatchUpsertSchema.safeParse(request.body);
+      if (!result.success) {
+        return reply.code(400).send({ error: 'Validation failed', issues: result.error.issues });
+      }
+
+      const profileId = request.profile!.id;
+      const updatedEntries: EntryRow[] = [];
+      const saveAll = db.transaction(() => {
+        for (const entry of result.data.entries) {
+          if (entry.id) {
+            const existing = db
+              .prepare('SELECT * FROM measurement_entries WHERE id = ? AND profile_id = ?')
+              .get(entry.id, profileId) as EntryRow | undefined;
+            if (!existing) {
+              throw Object.assign(new Error('Entry not found'), { statusCode: 404 });
+            }
+
+            const recordedAt = entry.recorded_at || entry.date
+              ? normalizeRecordedAt(entry.recorded_at, entry.date)
+              : existing.recorded_at;
+            db.prepare(
+              `UPDATE measurement_entries SET value = ?, recorded_at = ?, updated_at = datetime('now')
+               WHERE id = ? AND profile_id = ?`,
+            ).run(entry.value, recordedAt, entry.id, profileId);
+            updatedEntries.push(
+              db.prepare('SELECT * FROM measurement_entries WHERE id = ?').get(entry.id) as EntryRow,
+            );
+            continue;
+          }
+
+          const definitionId = entry.definition_id!;
+          const definition = db
+            .prepare(
+              `SELECT id FROM measurement_definitions
+               WHERE id = ? AND (is_system = 1 OR profile_id = ?)`,
+            )
+            .get(definitionId, profileId);
+          if (!definition) {
+            throw Object.assign(new Error(`Definition not found: ${definitionId}`), {
+              statusCode: 404,
+            });
+          }
+
+          const id = nanoid();
+          db.prepare(
+            `INSERT INTO measurement_entries (id, profile_id, definition_id, value, recorded_at, notes)
+             VALUES (?, ?, ?, ?, ?, NULL)`,
+          ).run(
+            id,
+            profileId,
+            definitionId,
+            entry.value,
+            normalizeRecordedAt(entry.recorded_at, entry.date),
+          );
+          updatedEntries.push(
+            db.prepare('SELECT * FROM measurement_entries WHERE id = ?').get(id) as EntryRow,
+          );
+        }
+      });
+
+      try {
+        saveAll();
+      } catch (err: unknown) {
+        const e = err as { statusCode?: number; message?: string };
+        return reply.code(e.statusCode ?? 500).send({ error: e.message ?? 'Internal error' });
+      }
+
+      return reply.send(updatedEntries);
+    },
   );
 
   /**

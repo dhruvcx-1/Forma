@@ -240,7 +240,7 @@ jobs:
           name: ${{ github.ref == 'refs/heads/master' && 'Forma Android (latest)' || format('Forma {0}', github.ref_name) }}
           prerelease: ${{ github.ref == 'refs/heads/master' }}
           make_latest: false
-          body: "${{ startsWith(github.ref, 'refs/tags/v') && 'Bug fix: fixed saving body measurement entries when the API returns an array.' || '' }}"
+          body: "${{ startsWith(github.ref, 'refs/tags/v') && 'New in v1.0.3: batch updates and new sessions from Zones; all-body-part multi-line trends and per-field history tabs, including custom fields; body-fat history for measurements recorded separately, with all-time dashboard history by default.' || '' }}"
           overwrite_files: true
           files: ${{ github.ref == 'refs/heads/master' && 'Forma-Android-Universal.apk' || format('Forma-Android-{0}.apk', github.ref_name) }}
           fail_on_unmatched_files: true
