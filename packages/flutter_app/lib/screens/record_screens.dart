@@ -380,12 +380,20 @@ class WeightLineChart extends StatelessWidget {
       titlesData: const FlTitlesData(show: false),
       lineTouchData: LineTouchData(
           touchTooltipData: LineTouchTooltipData(
-              getTooltipItems: (spots) => spots
-                  .map((s) => LineTooltipItem(
-                      '${s.y.toStringAsFixed(1)} $unit',
-                      const TextStyle(
-                          color: Colors.white, fontWeight: FontWeight.w600)))
-                  .toList())),
+              getTooltipItems: (spots) => spots.map((spot) {
+                    final index = spot.x.round().clamp(0, entries.length - 1);
+                    final entry = asJson(entries[index]);
+                    final method = switch (entry['method']) {
+                      'navy' => ' · US Navy estimate',
+                      'deurenberg' => ' · BMI estimate',
+                      _ => '',
+                    };
+                    final date = entry['recorded_at'] ?? entry['date'];
+                    return LineTooltipItem(
+                        '${spot.y.toStringAsFixed(1)} $unit${date == null ? '' : '\n${displayDate(date)}'}$method',
+                        const TextStyle(
+                            color: Colors.white, fontWeight: FontWeight.w600));
+                  }).toList())),
       lineBarsData: [
         LineChartBarData(
             spots: [
@@ -620,7 +628,7 @@ class _MeasurementsScreenState extends State<MeasurementsScreen> {
   String historyQuery = '';
   final Map<String, TextEditingController> _zoneInputs = {};
   final zoneDate = TextEditingController(text: today());
-  bool _zoneNewSession = false;
+  bool _zoneNewSession = true;
   bool _savingZoneBatch = false;
   final quickValue = TextEditingController();
   @override
@@ -708,7 +716,6 @@ class _MeasurementsScreenState extends State<MeasurementsScreen> {
       await widget.api
           .putDynamic('/measurements/entries/batch', {'entries': batch});
       if (!mounted) return;
-      _zoneNewSession = false;
       zoneDate.text = today();
       setState(() {
         _savingZoneBatch = false;
@@ -1280,7 +1287,9 @@ class _MeasurementsScreenState extends State<MeasurementsScreen> {
                                     'Existing records keep their original date when updated.')),
                         const SizedBox(height: 4),
                         Text(
-                            'Latest values are prefilled. Change any value to update it, or fill a blank site to add its first record.',
+                            _zoneNewSession
+                                ? 'Enter the measurements for this date. Existing values remain in your history as a separate session.'
+                                : 'Latest values are prefilled. Change any value to update it, or fill a blank site to add its first record.',
                             style: Theme.of(context).textTheme.bodySmall),
                         const SizedBox(height: 6),
                         SwitchListTile(

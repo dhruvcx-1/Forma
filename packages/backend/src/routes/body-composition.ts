@@ -239,7 +239,22 @@ const bodyCompositionRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       // 7. Body Fat History Timeline (based on historical measurements or weight entries)
-      const bodyFatHistory: Array<{ date: string; value: number; method: 'navy' | 'deurenberg' }> = [];
+      const bodyFatByDate = new Map<
+        string,
+        { date: string; value: number; method: 'navy' | 'deurenberg' }
+      >();
+
+      // Use weight history for dates without a circumference-based estimate.
+      // A single Navy point should not hide an otherwise useful weight timeline.
+      for (const b of bmiHistory) {
+        const date = b.date.split('T')[0];
+        bodyFatByDate.set(date, {
+          date,
+          value: deurenbergBodyFat(b.bmi, ageYears, sex),
+          method: 'deurenberg',
+        });
+      }
+
       if (heightCm) {
         // Build a daily timeline and carry the last known circumference forward.
         // Measurements are often logged separately, so matching exact timestamps
@@ -284,7 +299,7 @@ const bodyCompositionRoutes: FastifyPluginAsync = async (fastify) => {
                 latestValues.neck,
                 historyHeightCm,
               );
-              bodyFatHistory.push({ date, value: val, method: 'navy' });
+              bodyFatByDate.set(date, { date, value: val, method: 'navy' });
             } else if (sex === 'female' && latestValues.hips) {
               const val = navyBodyFatFemale(
                 latestValues.waist,
@@ -292,22 +307,14 @@ const bodyCompositionRoutes: FastifyPluginAsync = async (fastify) => {
                 latestValues.neck,
                 historyHeightCm,
               );
-              bodyFatHistory.push({ date, value: val, method: 'navy' });
+              bodyFatByDate.set(date, { date, value: val, method: 'navy' });
             }
           }
         }
-
-        // If no Navy points exist yet but we have weight history, populate with Deurenberg points
-        if (bodyFatHistory.length === 0 && bmiHistory.length > 0) {
-          for (const b of bmiHistory) {
-            bodyFatHistory.push({
-              date: b.date,
-              value: deurenbergBodyFat(b.bmi, ageYears, sex),
-              method: 'deurenberg',
-            });
-          }
-        }
       }
+      const bodyFatHistory = [...bodyFatByDate.values()].sort((a, b) =>
+        a.date.localeCompare(b.date),
+      );
 
       // 8. Cardiometabolic Ratios
       const whtr = waistCm && heightCm ? calculateWHtR(waistCm, heightCm) : null;
