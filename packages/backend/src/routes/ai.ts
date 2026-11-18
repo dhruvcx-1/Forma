@@ -56,14 +56,30 @@ Fixed coaching boundaries:
 const REPORT_PROMPT = `You write a concise, supportive weekly progress report for a self-tracking app. Use only the supplied records. Compare the latest 7-day period with the previous 7 days when data allows. Mention what changed, what stayed consistent, and one to three optional next steps. Do not diagnose, moralize weight or food, or invent missing data. Make clear when a body-composition value is an estimate. Keep the report useful even when tracking is incomplete.`;
 
 function getEncryptionKey(): Buffer {
-  const encoded = process.env.FORMA_AI_ENCRYPTION_KEY ?? '';
-  const key = Buffer.from(encoded, 'base64');
-  if (key.length !== 32) {
+  const encoded = (process.env.FORMA_AI_ENCRYPTION_KEY ?? '').trim();
+  if (!encoded) {
     throw new Error(
-      'AI key encryption is not configured. Set FORMA_AI_ENCRYPTION_KEY to a base64-encoded 32-byte key on the Forma server.',
+      'FORMA_AI_ENCRYPTION_KEY is missing from the running Forma server. Add it to the container environment and recreate the container.',
+    );
+  }
+  const normalized = encoded.replace(/\s/g, '');
+  const key = Buffer.from(normalized, 'base64');
+  const canonical = key.toString('base64').replace(/=+$/, '');
+  if (key.length !== 32 || canonical !== normalized.replace(/=+$/, '')) {
+    throw new Error(
+      'FORMA_AI_ENCRYPTION_KEY is invalid. It must be base64 that decodes to exactly 32 bytes. Generate one with: openssl rand -base64 32',
     );
   }
   return key;
+}
+
+function isEncryptionKeyReady(): boolean {
+  try {
+    getEncryptionKey();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function encryptApiKey(value: string): {
@@ -150,6 +166,7 @@ function publicSettings(row: AiSettingsRow | undefined) {
     coachMode: row?.coach_mode ?? 'friend',
     customCoachPrompt: row?.custom_coach_prompt ?? '',
     hasApiKey: Boolean(row?.api_key_ciphertext),
+    serverEncryptionReady: isEncryptionKeyReady(),
   };
 }
 
@@ -498,13 +515,17 @@ const aiRoutes: FastifyPluginAsync = async (fastify) => {
     const row = getSettings(request.profile!.id);
     if (!row) return reply.code(400).send({ error: 'Save AI provider settings first.' });
     try {
+      getEncryptionKey();
       const key = decryptApiKey(row);
       await callChatCompletion(row, key, [
         { role: 'user', content: 'Reply with the single word OK.' },
       ], 8);
       return reply.send({ ok: true });
     } catch (error) {
-      return reply.code(400).send({ error: (error as Error).message });
+      const message = (error as Error).message;
+      return reply
+        .code(message.includes('FORMA_AI_ENCRYPTION_KEY') ? 503 : 502)
+        .send({ error: message });
     }
   });
 

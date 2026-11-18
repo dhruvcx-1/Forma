@@ -21,6 +21,7 @@ class _AiScreenState extends State<AiScreen>
   final _message = TextEditingController();
   bool _enabled = false;
   bool _hasKey = false;
+  bool _serverEncryptionReady = false;
   bool _busy = false;
   String _mode = 'friend';
   String? _notice;
@@ -59,6 +60,7 @@ class _AiScreenState extends State<AiScreen>
       setState(() {
         _enabled = settings['enabled'] == true;
         _hasKey = settings['hasApiKey'] == true;
+        _serverEncryptionReady = settings['serverEncryptionReady'] == true;
         _baseUrl.text = settings['baseUrl']?.toString() ?? _baseUrl.text;
         _model.text = settings['model']?.toString() ?? '';
         _mode = settings['coachMode']?.toString() ?? 'friend';
@@ -77,7 +79,17 @@ class _AiScreenState extends State<AiScreen>
   String _errorText(Object error) {
     if (error is DioException) {
       final data = error.response?.data;
-      if (data is Map && data['error'] != null) return data['error'].toString();
+      final serverMessage = data is Map ? data['error'] : null;
+      if (serverMessage is String && serverMessage.trim().isNotEmpty) {
+        return serverMessage;
+      }
+      if (data is String && data.trim().isNotEmpty && data.trim() != 'true') {
+        return data.trim();
+      }
+      final status = error.response?.statusCode;
+      if (status != null) {
+        return 'The server returned HTTP $status without a useful error message. Check the Forma server logs.';
+      }
       return error.message ?? 'Request failed.';
     }
     return error.toString();
@@ -98,25 +110,39 @@ class _AiScreenState extends State<AiScreen>
     }
   }
 
+  Future<Map<String, dynamic>> _persistSettings() async {
+    final payload = <String, dynamic>{
+      'enabled': _enabled,
+      'baseUrl': _baseUrl.text.trim(),
+      'model': _model.text.trim(),
+      'coachMode': _mode,
+      'customCoachPrompt': _customPrompt.text,
+    };
+    if (_key.text.trim().isNotEmpty) payload['apiKey'] = _key.text.trim();
+    final settings = await widget.api.put('/ai/settings', payload);
+    if (mounted) {
+      setState(() {
+        _hasKey = settings['hasApiKey'] == true;
+        _serverEncryptionReady = settings['serverEncryptionReady'] == true;
+        _key.clear();
+      });
+    }
+    return settings;
+  }
+
   Future<void> _save() => _run(() async {
-        final payload = <String, dynamic>{
-          'enabled': _enabled,
-          'baseUrl': _baseUrl.text.trim(),
-          'model': _model.text.trim(),
-          'coachMode': _mode,
-          'customCoachPrompt': _customPrompt.text,
-        };
-        if (_key.text.trim().isNotEmpty) payload['apiKey'] = _key.text.trim();
-        final settings = await widget.api.put('/ai/settings', payload);
-        if (!mounted) return;
-        setState(() {
-          _hasKey = settings['hasApiKey'] == true;
-          _key.clear();
-          _notice = 'AI settings saved.';
-        });
+        await _persistSettings();
+        if (mounted) setState(() => _notice = 'AI settings saved.');
       });
 
   Future<void> _test() => _run(() async {
+        if (_baseUrl.text.trim().isEmpty || _model.text.trim().isEmpty) {
+          throw StateError('Enter an API base URL and model before testing.');
+        }
+        if (!_hasKey && _key.text.trim().isEmpty) {
+          throw StateError('Enter an API token before testing the provider.');
+        }
+        await _persistSettings();
         await widget.api.post('/ai/test', {});
         if (mounted) setState(() => _notice = 'Provider connection succeeded.');
       });
@@ -192,6 +218,10 @@ class _AiScreenState extends State<AiScreen>
         const _InfoCard(
             text:
                 'AI is optional and uses your own provider account. When you generate a report or chat, Forma sends relevant health records to the configured AI provider. Forma excludes your name, username, biography, and photos. Provider terms and retention policies still apply.'),
+        if (!_serverEncryptionReady)
+          const _InfoCard(
+              text:
+                  'The Forma server cannot use FORMA_AI_ENCRYPTION_KEY. Check that the running container received a valid base64 key that decodes to 32 bytes, then recreate the container.'),
         SwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('Enable AI features'),
