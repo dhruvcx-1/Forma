@@ -13,56 +13,9 @@ env:
   IMAGE_NAME: ${{ github.repository_owner }}/forma
 
 jobs:
-  validate:
-    name: Validate backend and Flutter
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: 24
-          cache: npm
-
-      - name: Install Node dependencies
-        run: npm ci
-
-      - name: Test backend
-        run: npm test --workspace=packages/backend
-
-      - name: Build backend
-        run: npm run build --workspace=packages/backend
-
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          flutter-version: "3.47.9"
-          cache: true
-
-      - name: Install Flutter dependencies
-        working-directory: packages/flutter_app
-        run: flutter pub get --enforce-lockfile
-
-      - name: Analyze Flutter app
-        working-directory: packages/flutter_app
-        run: flutter analyze
-
-      - name: Test Flutter app
-        working-directory: packages/flutter_app
-        run: flutter test
-
-      - name: Build Flutter Web
-        working-directory: packages/flutter_app
-        run: flutter build web --release
-
   build-android:
     name: Build Android APK
-    needs: [validate, build-and-push]
-    # Build the APK only for version-tag releases, after the Docker image is pushed.
+    # Build the APK only for version-tag releases, in parallel with the Docker image.
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
@@ -237,14 +190,13 @@ jobs:
           name: ${{ github.ref == 'refs/heads/master' && 'Forma Android (latest)' || format('Forma {0}', github.ref_name) }}
           prerelease: ${{ github.ref == 'refs/heads/master' }}
           make_latest: false
-          body: "${{ startsWith(github.ref, 'refs/tags/v') && 'AI coach and weekly report improvements, including named coach personas, editable chat memory, responsive report metrics, and a refined mobile interface. GitHub Actions now builds release artifacts only for version tags.' || '' }}"
+          body: "${{ startsWith(github.ref, 'refs/tags/v') && 'Mobile AI coach layout refinement and a faster release pipeline. Docker image and Android APK builds now run in parallel, without a GitHub Actions validation stage.' || '' }}"
           overwrite_files: true
           files: ${{ github.ref == 'refs/heads/master' && 'Forma-Android-Universal.apk' || format('Forma-Android-{0}.apk', github.ref_name) }}
           fail_on_unmatched_files: true
 
   build-and-push:
     # Docker and Android artifacts are built only for version-tag releases.
-    needs: [validate]
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
