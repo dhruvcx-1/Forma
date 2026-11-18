@@ -1,5 +1,7 @@
 node_modules/
 dist/
+packages/flutter_app/build/
+build-and-push-ghcr.bat
 .env
 .env.local
 *.log

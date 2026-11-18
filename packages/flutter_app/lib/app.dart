@@ -182,6 +182,8 @@ class FormaShell extends StatelessWidget {
   final Widget child;
   final String location;
 
+  static const navigationWidth = 238.0;
+
   static const destinations = <(String, String, IconData)>[
     ('/', 'Overview', Icons.space_dashboard_outlined),
     ('/weight', 'Weight', Icons.monitor_weight_outlined),
@@ -208,6 +210,28 @@ class FormaShell extends StatelessWidget {
     final session = context.watch<SessionState>();
     return Scaffold(
       appBar: AppBar(
+          flexibleSpace: wide
+              ? LayoutBuilder(
+                  builder: (context, constraints) => Align(
+                    alignment: Alignment.centerLeft,
+                    child: SizedBox(
+                      width: navigationWidth,
+                      height: constraints.maxHeight,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          border: Border(
+                            right: BorderSide(
+                              color: Theme.of(context)
+                                  .dividerColor
+                                  .withValues(alpha: .35),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                )
+              : null,
           title: Row(mainAxisSize: MainAxisSize.min, children: [
             Image.asset('assets/branding/forma-mark.png',
                 width: 25, height: 25, filterQuality: FilterQuality.high),
@@ -305,7 +329,7 @@ class _DesktopNavigation extends StatelessWidget {
   final Map<String, dynamic>? user;
   @override
   Widget build(BuildContext context) => Container(
-        width: 238,
+        width: FormaShell.navigationWidth,
         decoration: BoxDecoration(
             border: Border(
                 right: BorderSide(

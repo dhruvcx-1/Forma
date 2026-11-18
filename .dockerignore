@@ -3,6 +3,12 @@ node_modules
 packages/backend/node_modules
 packages/backend/dist
 packages/backend/data
+packages/flutter_app/.dart_tool
+packages/flutter_app/build
+packages/flutter_app/.flutter-plugins-dependencies
+packages/flutter_app/.idea
+packages/flutter_app/forma.iml
+packages/flutter_app/.git
 data
 *.db
 *.db-shm

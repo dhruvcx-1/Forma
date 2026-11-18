@@ -282,6 +282,52 @@ const migrations: Record<number, Migration> = {
         ON ai_weekly_reports(profile_id, created_at DESC);
     `);
   },
+  6: (db) => {
+    db.exec(`
+      ALTER TABLE ai_provider_settings
+        ADD COLUMN chat_history_limit INTEGER NOT NULL DEFAULT 20;
+
+      CREATE TABLE IF NOT EXISTS ai_chat_memory (
+        profile_id TEXT PRIMARY KEY REFERENCES profiles(id) ON DELETE CASCADE,
+        summary TEXT NOT NULL DEFAULT '',
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `);
+  },
+  7: (db) => {
+    db.exec(`
+      ALTER TABLE ai_provider_settings ADD COLUMN coach_avatar_url TEXT;
+    `);
+  },
+  8: (db) => {
+    db.exec(`
+      ALTER TABLE ai_chat_messages ADD COLUMN sequence INTEGER;
+      WITH ranked AS (
+        SELECT id, ROW_NUMBER() OVER (
+          PARTITION BY profile_id ORDER BY created_at ASC, id ASC
+        ) AS message_sequence
+        FROM ai_chat_messages
+      )
+      UPDATE ai_chat_messages
+      SET sequence = (
+        SELECT message_sequence FROM ranked WHERE ranked.id = ai_chat_messages.id
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_chat_profile_sequence
+        ON ai_chat_messages(profile_id, sequence);
+    `);
+  },
+  9: (db) => {
+    db.exec(`
+      ALTER TABLE ai_provider_settings
+        ADD COLUMN custom_coach_name TEXT NOT NULL DEFAULT '';
+    `);
+  },
+  10: (db) => {
+    db.exec(`
+      ALTER TABLE ai_provider_settings
+        ADD COLUMN share_user_name INTEGER NOT NULL DEFAULT 0;
+    `);
+  },
 };
 
 // ---------------------------------------------------------------------------

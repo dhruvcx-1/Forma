@@ -38,9 +38,37 @@ class ApiClient {
           String path, Map<String, dynamic> body) async =>
       Map<String, dynamic>.from((await dio.post(path, data: body)).data as Map);
 
+  Future<Map<String, dynamic>> postWithTimeout(
+    String path,
+    Map<String, dynamic> body, {
+    required Duration timeout,
+  }) async =>
+      Map<String, dynamic>.from(
+        (await dio.post(
+          path,
+          data: body,
+          options: Options(connectTimeout: timeout, receiveTimeout: timeout),
+        ))
+            .data as Map,
+      );
+
   Future<Map<String, dynamic>> put(
           String path, Map<String, dynamic> body) async =>
       Map<String, dynamic>.from((await dio.put(path, data: body)).data as Map);
+
+  Future<Map<String, dynamic>> putWithTimeout(
+    String path,
+    Map<String, dynamic> body, {
+    required Duration timeout,
+  }) async =>
+      Map<String, dynamic>.from(
+        (await dio.put(
+          path,
+          data: body,
+          options: Options(connectTimeout: timeout, receiveTimeout: timeout),
+        ))
+            .data as Map,
+      );
 
   Future<Map<String, dynamic>> patch(
           String path, Map<String, dynamic> body) async =>

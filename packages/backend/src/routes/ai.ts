@@ -1,12 +1,34 @@
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 import { isIP } from 'node:net';
+import path from 'node:path';
+import fs from 'node:fs';
+import { pipeline } from 'node:stream/promises';
 import { nanoid } from 'nanoid';
 import { z } from 'zod';
 import { db } from '../db/index.js';
 import { requireAuth } from '../auth/plugin.js';
 
 type CoachMode = 'experienced' | 'friend' | 'edgy' | 'custom';
+
+const COACH_AVATARS_PATH = path.resolve(
+  process.env.PHOTOS_PATH ?? './data/photos',
+  'coach-avatars',
+);
+const COACH_AVATAR_MIME_TYPES = new Map([
+  ['image/jpeg', 'jpg'],
+  ['image/png', 'png'],
+  ['image/webp', 'webp'],
+]);
+fs.mkdirSync(COACH_AVATARS_PATH, { recursive: true });
+
+function safeCoachAvatarPath(filename: string): string {
+  const resolved = path.resolve(COACH_AVATARS_PATH, path.basename(filename));
+  if (!resolved.startsWith(COACH_AVATARS_PATH + path.sep)) {
+    throw new Error('Invalid coach avatar filename.');
+  }
+  return resolved;
+}
 
 interface AiSettingsRow {
   profile_id: string;
@@ -15,6 +37,10 @@ interface AiSettingsRow {
   model: string;
   coach_mode: CoachMode;
   custom_coach_prompt: string;
+  custom_coach_name: string;
+  share_user_name: number;
+  chat_history_limit: number;
+  coach_avatar_url: string | null;
   api_key_ciphertext: Buffer | null;
   api_key_iv: Buffer | null;
   api_key_tag: Buffer | null;
@@ -40,9 +66,26 @@ const UpdateAiSettingsSchema = z.object({
   apiKey: z.string().max(512).optional(),
   coachMode: CoachModeSchema.optional(),
   customCoachPrompt: z.string().max(8000).optional(),
+  customCoachName: z.string().trim().max(48).optional(),
+  shareUserName: z.boolean().optional(),
+  chatHistoryLimit: z.number().int().min(4).max(100).optional(),
 });
 const ChatSchema = z.object({
   message: z.string().trim().min(1).max(4000),
+});
+const EditAssistantChatMessageSchema = z.object({
+  content: z.string().trim().min(1).max(4000),
+});
+const EditChatMessageSchema = z.union([
+  ChatSchema,
+  EditAssistantChatMessageSchema,
+]);
+const ListModelsSchema = z.object({
+  baseUrl: z.string().max(512).optional(),
+  apiKey: z.string().max(512).optional(),
+});
+const ChatMemorySchema = z.object({
+  summary: z.string().max(12000),
 });
 
 const COACH_PRESETS: Record<Exclude<CoachMode, 'custom'>, string> = {
@@ -64,7 +107,100 @@ Fixed coaching boundaries:
 - Use only the health context supplied below. Account name, username, biography, avatar, and progress photos are deliberately excluded.
 - If data is missing, say so and ask a focused question rather than inventing facts. Distinguish measured values from estimates.`;
 
-const REPORT_PROMPT = `You write a concise, supportive weekly progress report for a self-tracking app. Use only the supplied records. Compare the latest 7-day period with the previous 7 days when data allows. Mention what changed, what stayed consistent, and one to three optional next steps. Do not diagnose, moralize weight or food, or invent missing data. Make clear when a body-composition value is an estimate. Keep the report useful even when tracking is incomplete.`;
+const REPORT_PROMPT = `Write the coaching narrative for a weekly progress report. Adopt the selected coach personality above so the report sounds like that coach, not a generic analyst. This is a report-only style instruction: use a moderate-to-high amount of relevant emojis (roughly one or two per bullet, around 5–8 overall); do not let this instruction affect normal coach chat. Keep the first three sections brief and specific. Do more than recap the metrics: interpret the direction and reliability of the available signals, connect related habits and outcomes when the records support it, recognize a real win or useful pattern, and give a practical focus for the coming week. Consider every measurement field, including user-created custom fields, by its supplied name and unit. Distinguish a new baseline from a trend, note when there is too little data, and never claim that one behavior caused a body change. Use only supplied records; do not repeat or recalculate the metrics because Forma displays them in a fixed table. Return exactly these four headings, in this order: "## Coach's read", "## Wins & patterns", "## Your focus this week", and "## Overall summary". Under each of the first three headings use one or two concise bullets; include one to three realistic, specific actions in the focus section and briefly say why they fit. Under Overall summary write a single personal, encouraging paragraph of 500–1,000 characters in the selected coach's voice. Make it feel like the coach's considered view of the person's progress and what deserves attention next, with grounded motivation rather than generic cheerleading. Do not use tables, add other headings, diagnose, shame, moralize, or invent missing data.`;
+
+function reportNumber(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/, '');
+}
+
+function reportMetric(
+  label: string,
+  latest: number | null,
+  previous: number | null,
+  unit: string,
+  latestCount?: number,
+  previousCount?: number,
+): string {
+  const latestText = latest === null
+    ? 'No data'
+    : `${reportNumber(latest)}${unit ? ` ${unit}` : ''}${latestCount === undefined ? '' : ` (${latestCount} ${latestCount === 1 ? 'reading' : 'readings'})`}`;
+  const previousText = previous === null
+    ? 'No data'
+    : `${reportNumber(previous)}${unit ? ` ${unit}` : ''}${previousCount === undefined ? '' : ` (${previousCount} ${previousCount === 1 ? 'reading' : 'readings'})`}`;
+  let change = 'Not enough data to compare';
+  if (latest !== null && previous !== null) {
+    const delta = latest - previous;
+    change = delta === 0
+      ? 'No change'
+      : `${delta < 0 ? '↓' : '↑'} ${reportNumber(Math.abs(delta))}${unit ? ` ${unit}` : ''}`;
+  } else if (latest !== null) {
+    change = 'New data this week';
+  } else if (previous !== null) {
+    change = 'No data this week';
+  }
+  return `| ${label} | ${latestText} | ${previousText} | ${change} |`;
+}
+
+function reportMetrics(latest: any, previous: any): string {
+  const sections: string[] = [];
+  const average = (items: any[], selector: (item: any) => number) =>
+    items.length ? items.reduce((sum, item) => sum + selector(item), 0) / items.length : null;
+  const latestWeights = latest.weights as Array<{ value: number; unit: string }>;
+  const previousWeights = previous.weights as Array<{ value: number; unit: string }>;
+  const weightUnit = latestWeights[0]?.unit ?? previousWeights[0]?.unit ?? '';
+  const latestUnitWeights = latestWeights.filter((entry) => entry.unit === weightUnit);
+  const previousUnitWeights = previousWeights.filter((entry) => entry.unit === weightUnit);
+  sections.push(reportMetric(
+    'Weight',
+    average(latestUnitWeights, (entry) => entry.value),
+    average(previousUnitWeights, (entry) => entry.value),
+    weightUnit, latestUnitWeights.length, previousUnitWeights.length,
+  ));
+
+  const groupMeasurements = (items: any[]) => {
+    const groups = new Map<string, { unit: string; values: number[] }>();
+    for (const item of items as Array<{ site: string; unit: string; value: number }>) {
+      const key = item.site;
+      const group = groups.get(key) ?? { unit: item.unit, values: [] };
+      group.values.push(Number(item.value));
+      groups.set(key, group);
+    }
+    return groups;
+  };
+  const latestMeasurements = groupMeasurements(latest.measurements);
+  const previousMeasurements = groupMeasurements(previous.measurements);
+  for (const [site, current] of latestMeasurements) {
+    const prior = previousMeasurements.get(site);
+    sections.push(reportMetric(
+      site,
+      average(current.values, (value) => value),
+      prior ? average(prior.values, (value) => value) : null,
+      current.unit, current.values.length, prior?.values.length,
+    ));
+  }
+  for (const [site, prior] of previousMeasurements) {
+    if (!latestMeasurements.has(site)) {
+      sections.push(reportMetric(
+        site, null,
+        average(prior.values, (value) => value), prior.unit, 0, prior.values.length,
+      ));
+    }
+  }
+
+  const latestLogs = latest.nutritionLogs as unknown[];
+  const previousLogs = previous.nutritionLogs as unknown[];
+  sections.push(reportMetric('Nutrition logs', latestLogs.length, previousLogs.length, 'days'));
+  const fastingCount = (items: any[]) => (items as Array<{ status: string }>).filter((item) => item.status === 'completed').length;
+  sections.push(reportMetric(
+    'Completed fasting sessions', fastingCount(latest.fastingSessions),
+    fastingCount(previous.fastingSessions), 'sessions',
+  ));
+  return [
+    '| Metric | Latest Week | Previous Week | Change |',
+    '| --- | --- | --- | --- |',
+    ...sections,
+  ].join('\n');
+}
 
 function getEncryptionKey(): Buffer {
   const encoded = (process.env.FORMA_AI_ENCRYPTION_KEY ?? '').trim();
@@ -169,6 +305,14 @@ function getSettings(profileId: string): AiSettingsRow | undefined {
     .get(profileId) as AiSettingsRow | undefined;
 }
 
+function getChatMemory(profileId: string) {
+  return db
+    .prepare(
+      'SELECT summary, updated_at AS updatedAt FROM ai_chat_memory WHERE profile_id = ?',
+    )
+    .get(profileId) as { summary: string; updatedAt: string } | undefined;
+}
+
 function publicSettings(row: AiSettingsRow | undefined) {
   return {
     enabled: Boolean(row?.enabled),
@@ -176,6 +320,10 @@ function publicSettings(row: AiSettingsRow | undefined) {
     model: row?.model ?? '',
     coachMode: row?.coach_mode ?? 'friend',
     customCoachPrompt: row?.custom_coach_prompt ?? '',
+    customCoachName: row?.custom_coach_name ?? '',
+    shareUserName: Boolean(row?.share_user_name),
+    chatHistoryLimit: row?.chat_history_limit ?? 20,
+    customCoachAvatarUrl: row?.coach_avatar_url ?? null,
     hasApiKey: Boolean(row?.api_key_ciphertext),
     serverEncryptionReady: isEncryptionKeyReady(),
   };
@@ -211,7 +359,7 @@ async function callChatCompletion(
         temperature: 0.6,
         max_tokens: maxTokens,
       }),
-      signal: AbortSignal.timeout(60000),
+      signal: AbortSignal.timeout(120000),
     });
   } catch (error) {
     const cause = (error as { cause?: { code?: unknown } })?.cause;
@@ -241,15 +389,30 @@ async function callChatCompletion(
     throw new AiProviderError(message, response.status);
   }
   const data = (await response.json()) as {
-    choices?: Array<{ message?: { content?: string | Array<{ text?: string }> } }>;
+    choices?: Array<{
+      finish_reason?: string | null;
+      message?: {
+        content?: string | Array<{ text?: string }> | null;
+        tool_calls?: unknown[];
+        reasoning?: unknown;
+      };
+    }>;
   };
-  const content = data.choices?.[0]?.message?.content;
+  const choice = data.choices?.[0];
+  const content = choice?.message?.content;
   if (typeof content === 'string' && content.trim()) return content.trim();
   if (Array.isArray(content)) {
     const combined = content.map((part) => part.text ?? '').join('').trim();
     if (combined) return combined;
   }
-  throw new Error('The AI provider returned an empty response.');
+  const details = choice?.finish_reason === 'length'
+    ? ' The response reached its token limit before producing text; increase the output token limit or use a non-reasoning model.'
+    : choice?.message?.tool_calls?.length
+      ? ' The model returned a tool call, which Forma does not support.'
+      : choice?.message?.reasoning
+        ? ' The model returned reasoning without a text answer; try a model that returns a final chat message.'
+        : '';
+  throw new Error(`The AI provider returned an empty response.${details}`);
 }
 
 function logAiFailure(
@@ -286,6 +449,22 @@ function accountIdentifiers(profileId: string): string[] {
     .get(profileId) as { username: string; display_name: string | null } | undefined;
   return [row?.username, row?.display_name ?? undefined]
     .filter((value): value is string => Boolean(value && value.length > 2));
+}
+
+function sharedDisplayName(row: AiSettingsRow, profileId: string): string | null {
+  if (row.coach_mode !== 'custom' || !row.share_user_name) return null;
+  const profile = db
+    .prepare('SELECT display_name FROM profiles WHERE id = ?')
+    .get(profileId) as { display_name: string | null } | undefined;
+  const name = profile?.display_name?.trim();
+  return name || null;
+}
+
+function aiIdentityContext(row: AiSettingsRow, profileId: string): string {
+  const name = sharedDisplayName(row, profileId);
+  return name
+    ? `The user has opted to share their display name: ${JSON.stringify(name)}. Use it naturally and only when it feels helpful. Usernames, biographies, and photos remain excluded.`
+    : 'The user’s name, username, biography, and photos are excluded.';
 }
 
 function redactAccountNames(value: string | null, identifiers: string[]): string | null {
@@ -340,7 +519,7 @@ function buildUserContext(profileId: string) {
   }>;
   const measurements = db
     .prepare(
-      `SELECT md.name AS site, md.slug, md.unit, me.value, me.recorded_at, me.notes
+      `SELECT md.name AS site, md.slug, md.unit, md.is_system, me.value, me.recorded_at, me.notes
        FROM measurement_entries me
        JOIN measurement_definitions md ON md.id = me.definition_id
        WHERE me.profile_id = ? ORDER BY me.recorded_at ASC`,
@@ -349,6 +528,7 @@ function buildUserContext(profileId: string) {
     site: string;
     slug: string;
     unit: string;
+    is_system: number;
     value: number;
     recorded_at: string;
     notes: string | null;
@@ -413,6 +593,7 @@ function buildUserContext(profileId: string) {
     })),
     measurementHistory: measurements.map((entry) => ({
       ...entry,
+      isCustom: !entry.is_system,
       notes: redactAccountNames(entry.notes, identifiers),
     })),
     nutrition: {
@@ -453,7 +634,7 @@ function getWeeklySnapshot(profileId: string, from: string, to: string) {
       })),
     measurements: db
       .prepare(
-        `SELECT md.name AS site, md.unit, me.value, me.recorded_at, me.notes
+        `SELECT md.name AS site, md.unit, md.is_system, me.value, me.recorded_at, me.notes
          FROM measurement_entries me JOIN measurement_definitions md ON md.id = me.definition_id
          WHERE me.profile_id = ? AND me.recorded_at >= ? AND me.recorded_at < ?
          ORDER BY me.recorded_at ASC`,
@@ -461,6 +642,7 @@ function getWeeklySnapshot(profileId: string, from: string, to: string) {
       .all(profileId, `${from}T00:00:00`, `${shiftDate(to, 1)}T00:00:00`)
       .map((entry: any) => ({
         ...entry,
+        isCustom: !entry.is_system,
         notes: redactAccountNames(entry.notes, identifiers),
       })),
     nutritionLogs: db
@@ -489,9 +671,8 @@ function getWeeklySnapshot(profileId: string, from: string, to: string) {
 }
 
 function coachInstructions(row: AiSettingsRow): string {
-  const persona = row.coach_mode === 'custom'
-    ? row.custom_coach_prompt.trim()
-    : COACH_PRESETS[row.coach_mode] ?? COACH_PRESETS.friend;
+  if (row.coach_mode === 'custom') return row.custom_coach_prompt.trim();
+  const persona = COACH_PRESETS[row.coach_mode] ?? COACH_PRESETS.friend;
   return `${persona}\n\n${COACH_SAFETY}`;
 }
 
@@ -513,6 +694,9 @@ const aiRoutes: FastifyPluginAsync = async (fastify) => {
     const model = (data.model ?? current?.model ?? '').trim();
     const coachMode = data.coachMode ?? current?.coach_mode ?? 'friend';
     const customPrompt = data.customCoachPrompt ?? current?.custom_coach_prompt ?? '';
+    const customCoachName = data.customCoachName ?? current?.custom_coach_name ?? '';
+    const shareUserName = data.shareUserName ?? Boolean(current?.share_user_name);
+    const chatHistoryLimit = data.chatHistoryLimit ?? current?.chat_history_limit ?? 20;
 
     if (enabled && !model) {
       return reply.code(400).send({ error: 'Choose a model before enabling AI features.' });
@@ -540,14 +724,18 @@ const aiRoutes: FastifyPluginAsync = async (fastify) => {
     db.prepare(
       `INSERT INTO ai_provider_settings
        (profile_id, enabled, base_url, model, coach_mode, custom_coach_prompt,
-        api_key_ciphertext, api_key_iv, api_key_tag, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+        api_key_ciphertext, api_key_iv, api_key_tag, chat_history_limit,
+        custom_coach_name, share_user_name, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
        ON CONFLICT(profile_id) DO UPDATE SET
          enabled = excluded.enabled,
          base_url = excluded.base_url,
          model = excluded.model,
          coach_mode = excluded.coach_mode,
          custom_coach_prompt = excluded.custom_coach_prompt,
+         chat_history_limit = excluded.chat_history_limit,
+         custom_coach_name = excluded.custom_coach_name,
+         share_user_name = excluded.share_user_name,
          api_key_ciphertext = COALESCE(excluded.api_key_ciphertext, ai_provider_settings.api_key_ciphertext),
          api_key_iv = COALESCE(excluded.api_key_iv, ai_provider_settings.api_key_iv),
          api_key_tag = COALESCE(excluded.api_key_tag, ai_provider_settings.api_key_tag),
@@ -562,8 +750,142 @@ const aiRoutes: FastifyPluginAsync = async (fastify) => {
       encrypted?.ciphertext ?? null,
       encrypted?.iv ?? null,
       encrypted?.tag ?? null,
+      chatHistoryLimit,
+      customCoachName,
+      shareUserName ? 1 : 0,
     );
     return reply.send(publicSettings(getSettings(profileId)));
+  });
+
+  fastify.post('/api/ai/coach-avatar', { preHandler: requireAuth }, async (request, reply) => {
+    const file = await request.file({ limits: { fileSize: 5 * 1024 * 1024 } });
+    if (!file) return reply.code(400).send({ error: 'Choose an image to upload.' });
+    const extension = COACH_AVATAR_MIME_TYPES.get(file.mimetype);
+    if (!extension) {
+      file.file.resume();
+      return reply.code(400).send({ error: 'Use a JPEG, PNG, or WebP image.' });
+    }
+    const filename = `coach_${nanoid(16)}.${extension}`;
+    const targetPath = safeCoachAvatarPath(filename);
+    await pipeline(file.file, fs.createWriteStream(targetPath));
+    if (file.file.truncated) {
+      fs.unlink(targetPath, () => {});
+      return reply.code(413).send({ error: 'Coach avatar must be 5 MB or smaller.' });
+    }
+
+    const profileId = request.profile!.id;
+    const current = getSettings(profileId);
+    if (current?.coach_avatar_url) {
+      try {
+        fs.unlinkSync(safeCoachAvatarPath(path.basename(current.coach_avatar_url)));
+      } catch {
+        // Replacing an avatar should still succeed if its previous file is missing.
+      }
+    }
+    const avatarUrl = `/api/ai/coach-avatar/${filename}`;
+    db.prepare(
+      `INSERT INTO ai_provider_settings (profile_id, coach_avatar_url)
+       VALUES (?, ?)
+       ON CONFLICT(profile_id) DO UPDATE SET coach_avatar_url = excluded.coach_avatar_url`,
+    ).run(profileId, avatarUrl);
+    return reply.send({ coachAvatarUrl: avatarUrl });
+  });
+
+  fastify.delete('/api/ai/coach-avatar', { preHandler: requireAuth }, async (request, reply) => {
+    const profileId = request.profile!.id;
+    const current = getSettings(profileId);
+    if (current?.coach_avatar_url) {
+      try {
+        fs.unlinkSync(safeCoachAvatarPath(path.basename(current.coach_avatar_url)));
+      } catch {
+        // The stored URL is cleared even if the old file is already missing.
+      }
+      db.prepare(
+        'UPDATE ai_provider_settings SET coach_avatar_url = NULL WHERE profile_id = ?',
+      ).run(profileId);
+    }
+    return reply.send({ ok: true });
+  });
+
+  fastify.get('/api/ai/coach-avatar/:filename', { preHandler: requireAuth }, async (request, reply) => {
+    const { filename } = request.params as { filename: string };
+    const avatarUrl = `/api/ai/coach-avatar/${path.basename(filename)}`;
+    const current = getSettings(request.profile!.id);
+    if (current?.coach_avatar_url !== avatarUrl) {
+      return reply.code(404).send({ error: 'Coach avatar not found.' });
+    }
+    const filePath = safeCoachAvatarPath(filename);
+    if (!fs.existsSync(filePath)) {
+      return reply.code(404).send({ error: 'Coach avatar not found.' });
+    }
+    const extension = path.extname(filename).toLowerCase();
+    const contentType = extension === '.png'
+      ? 'image/png'
+      : extension === '.webp'
+        ? 'image/webp'
+        : 'image/jpeg';
+    return reply
+      .type(contentType)
+      .header('Cache-Control', 'private, max-age=3600')
+      .send(fs.createReadStream(filePath));
+  });
+
+  fastify.post('/api/ai/models', { preHandler: requireAuth }, async (request, reply) => {
+    const parsed = ListModelsSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: 'Invalid provider settings.' });
+    }
+    const current = getSettings(request.profile!.id);
+    const baseUrlValue = parsed.data.baseUrl?.trim() || current?.base_url;
+    if (!baseUrlValue) {
+      return reply.code(400).send({ error: 'Enter an API base URL first.' });
+    }
+
+    let baseUrl: string;
+    try {
+      baseUrl = normalizeBaseUrl(baseUrlValue);
+    } catch (error) {
+      return reply.code(400).send({ error: (error as Error).message });
+    }
+    let apiKey = parsed.data.apiKey?.trim();
+    if (!apiKey && current?.api_key_ciphertext) {
+      try {
+        apiKey = decryptApiKey(current);
+      } catch (error) {
+        return reply.code(503).send({ error: (error as Error).message });
+      }
+    }
+    if (!apiKey) {
+      return reply.code(400).send({ error: 'Enter an API token first.' });
+    }
+
+    try {
+      const response = await fetch(`${baseUrl}/models`, {
+        headers: { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' },
+        signal: AbortSignal.timeout(30000),
+      });
+      if (!response.ok) {
+        const message = response.status === 401 || response.status === 403
+          ? `The provider rejected the API token (HTTP ${response.status}). Check the token.`
+          : response.status === 404
+            ? 'The provider does not expose a compatible models endpoint. Enter a model ID manually.'
+            : `The provider could not list models (HTTP ${response.status}). Enter a model ID manually.`;
+        return reply.code(502).send({ error: message });
+      }
+      const data = await response.json() as { data?: Array<{ id?: unknown }> };
+      const models = [...new Set((Array.isArray(data.data) ? data.data : [])
+        .map((model) => typeof model.id === 'string' ? model.id.trim() : '')
+        .filter(Boolean))]
+        .sort((a, b) => a.localeCompare(b))
+        .slice(0, 1000);
+      return reply.send({ models });
+    } catch (error) {
+      fastify.log.warn(
+        { providerHost: new URL(baseUrl).hostname, error: error instanceof Error ? error.name : 'unknown' },
+        'AI provider model listing failed',
+      );
+      return reply.code(502).send({ error: 'Could not load models from the provider. Check the URL and server network connection.' });
+    }
   });
 
   fastify.delete('/api/ai/settings/key', { preHandler: requireAuth }, async (request, reply) => {
@@ -583,7 +905,7 @@ const aiRoutes: FastifyPluginAsync = async (fastify) => {
       const key = decryptApiKey(row);
       await callChatCompletion(row, key, [
         { role: 'user', content: 'Reply with the single word OK.' },
-      ], 8);
+      ], 256);
       return reply.send({ ok: true });
     } catch (error) {
       const message = (error as Error).message;
@@ -613,10 +935,11 @@ const aiRoutes: FastifyPluginAsync = async (fastify) => {
       previousWeek: getWeeklySnapshot(profileId, priorStart, priorEnd),
     };
     try {
-      const content = await callChatCompletion(row, apiKey, [
-        { role: 'system', content: REPORT_PROMPT },
+      const narrative = await callChatCompletion(row, apiKey, [
+        { role: 'system', content: `${coachInstructions(row)}\n\n${aiIdentityContext(row, profileId)}\n\n${REPORT_PROMPT}` },
         { role: 'user', content: JSON.stringify(snapshot) },
       ]);
+      const content = `${narrative}\n\n## Metrics\n\n${reportMetrics(snapshot.latestWeek, snapshot.previousWeek)}`;
       const id = nanoid();
       db.prepare(
         `INSERT INTO ai_weekly_reports (id, profile_id, week_start, week_end, content)
@@ -639,16 +962,123 @@ const aiRoutes: FastifyPluginAsync = async (fastify) => {
     return reply.send(reports);
   });
 
+  fastify.delete('/api/ai/weekly-reports/:id', { preHandler: requireAuth }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const result = db
+      .prepare('DELETE FROM ai_weekly_reports WHERE id = ? AND profile_id = ?')
+      .run(id, request.profile!.id);
+    if (result.changes === 0) {
+      return reply.code(404).send({ error: 'Weekly report not found.' });
+    }
+    return reply.send({ ok: true });
+  });
+
   fastify.get('/api/ai/chat', { preHandler: requireAuth }, async (request, reply) => {
     const messages = db
       .prepare(
-        `SELECT role, content, created_at AS createdAt FROM (
-           SELECT role, content, created_at, id FROM ai_chat_messages
-           WHERE profile_id = ? ORDER BY created_at DESC, id DESC LIMIT 100
-         ) ORDER BY created_at ASC, id ASC`,
+        `SELECT id, role, content, created_at AS createdAt FROM (
+           SELECT id, role, content, created_at, sequence FROM ai_chat_messages
+           WHERE profile_id = ? ORDER BY sequence DESC LIMIT 100
+         ) ORDER BY sequence ASC`,
       )
       .all(request.profile!.id);
     return reply.send(messages);
+  });
+
+  fastify.delete('/api/ai/chat/:id', { preHandler: requireAuth }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const profileId = request.profile!.id;
+    const target = db.prepare(
+      'SELECT id, role, sequence FROM ai_chat_messages WHERE id = ? AND profile_id = ?',
+    ).get(id, profileId) as { id: string; role: string; sequence: number } | undefined;
+    if (!target) return reply.code(404).send({ error: 'Message not found.' });
+
+    const deletedIds = [target.id];
+    if (target.role === 'user') {
+      const answer = db.prepare(
+        `SELECT id FROM ai_chat_messages
+         WHERE profile_id = ? AND role = 'assistant' AND sequence > ?
+         ORDER BY sequence ASC LIMIT 1`,
+      ).get(profileId, target.sequence) as { id: string } | undefined;
+      if (answer) deletedIds.push(answer.id);
+    }
+    const remove = db.prepare(
+      'DELETE FROM ai_chat_messages WHERE id = ? AND profile_id = ?',
+    );
+    db.transaction(() => {
+      for (const deletedId of deletedIds) remove.run(deletedId, profileId);
+    })();
+    return reply.send({ ok: true, deletedIds });
+  });
+
+  fastify.get('/api/ai/chat/memory', { preHandler: requireAuth }, async (request, reply) => {
+    return reply.send(getChatMemory(request.profile!.id) ?? { summary: '', updatedAt: null });
+  });
+
+  fastify.put('/api/ai/chat/memory', { preHandler: requireAuth }, async (request, reply) => {
+    const parsed = ChatMemorySchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: 'Memory must be 12,000 characters or fewer.' });
+    }
+    const profileId = request.profile!.id;
+    db.prepare(
+      `INSERT INTO ai_chat_memory (profile_id, summary, updated_at)
+       VALUES (?, ?, datetime('now'))
+       ON CONFLICT(profile_id) DO UPDATE SET
+         summary = excluded.summary, updated_at = datetime('now')`,
+    ).run(profileId, parsed.data.summary.trim());
+    return reply.send(getChatMemory(profileId));
+  });
+
+  fastify.post('/api/ai/chat/memory/generate', { preHandler: requireAuth }, async (request, reply) => {
+    const profileId = request.profile!.id;
+    let row: AiSettingsRow;
+    let apiKey: string;
+    try {
+      row = requireUsableSettings(profileId);
+      apiKey = decryptApiKey(row);
+    } catch (error) {
+      return reply.code(400).send({ error: (error as Error).message });
+    }
+    const identifiers = accountIdentifiers(profileId);
+    const history = db.prepare(
+      `SELECT role, content FROM (
+         SELECT role, content, sequence FROM ai_chat_messages
+         WHERE profile_id = ? ORDER BY sequence DESC LIMIT 100
+       ) ORDER BY sequence ASC`,
+    ).all(profileId) as Array<{ role: 'user' | 'assistant'; content: string }>;
+    if (history.length < 4) {
+      return reply.code(400).send({ error: 'Have a few more chat messages with your coach before generating a memory.' });
+    }
+    const previousMemory = getChatMemory(profileId)?.summary ?? '';
+    try {
+      const summary = await callChatCompletion(row, apiKey, [
+        {
+          role: 'system',
+          content: 'Create a concise, durable conversation memory for a personal training coach. Keep useful user-shared goals, preferences, constraints, equipment, experience, ongoing plans, and unresolved questions. Update the existing memory with the new conversation: retain still-relevant details, replace outdated ones, and remove details no longer useful. Do not include account names or identifiers. Write only the memory itself, in plain language, under 1,200 words.',
+        },
+        {
+          role: 'user',
+          content: JSON.stringify({
+            existingMemory: redactAccountNames(previousMemory, identifiers) ?? '',
+            recentConversation: history.map((message) => ({
+              role: message.role,
+              content: redactAccountNames(message.content, identifiers) ?? '',
+            })),
+          }),
+        },
+      ], 1800);
+      db.prepare(
+        `INSERT INTO ai_chat_memory (profile_id, summary, updated_at)
+         VALUES (?, ?, datetime('now'))
+         ON CONFLICT(profile_id) DO UPDATE SET
+           summary = excluded.summary, updated_at = datetime('now')`,
+      ).run(profileId, summary);
+      return reply.send(getChatMemory(profileId));
+    } catch (error) {
+      logAiFailure(fastify, 'coach-memory', row, error);
+      return reply.code(502).send({ error: (error as Error).message });
+    }
   });
 
   fastify.delete('/api/ai/chat', { preHandler: requireAuth }, async (request, reply) => {
@@ -676,16 +1106,20 @@ const aiRoutes: FastifyPluginAsync = async (fastify) => {
     const history = db
       .prepare(
         `SELECT role, content FROM (
-           SELECT role, content, created_at, id FROM ai_chat_messages
-           WHERE profile_id = ? ORDER BY created_at DESC, id DESC LIMIT 12
-         ) ORDER BY created_at ASC, id ASC`,
+           SELECT role, content, sequence FROM ai_chat_messages
+           WHERE profile_id = ? ORDER BY sequence DESC LIMIT ?
+         ) ORDER BY sequence ASC`,
       )
-      .all(profileId) as Array<{ role: 'user' | 'assistant'; content: string }>;
+      .all(profileId, row.chat_history_limit) as Array<{
+        role: 'user' | 'assistant';
+        content: string;
+      }>;
     const context = buildUserContext(profileId);
+    const memory = getChatMemory(profileId)?.summary.trim();
     const messages = [
       {
         role: 'system' as const,
-        content: `${coachInstructions(row)}\n\nComplete health and activity context (account identity and photos excluded):\n${JSON.stringify(context)}`,
+        content: `${coachInstructions(row)}\n\n${aiIdentityContext(row, profileId)}\nComplete health and activity context. Measurement history includes standard and user-created custom fields; use each field's supplied name, unit, and history when relevant:\n${JSON.stringify(context)}${memory ? `\n\nConversation memory from earlier chats:\n${redactAccountNames(memory, identifiers)}` : ''}`,
       },
       ...history.map((message) => ({
         role: message.role,
@@ -695,23 +1129,135 @@ const aiRoutes: FastifyPluginAsync = async (fastify) => {
     ];
     try {
       const content = await callChatCompletion(row, apiKey, messages);
+      const userMessageId = nanoid();
+      const assistantMessageId = nanoid();
       const insert = db.prepare(
-        `INSERT INTO ai_chat_messages (id, profile_id, role, content) VALUES (?, ?, ?, ?)`,
+        `INSERT INTO ai_chat_messages (id, profile_id, role, content, sequence)
+         VALUES (?, ?, ?, ?, ?)`,
       );
       const saveTurn = db.transaction(() => {
-        insert.run(nanoid(), profileId, 'user', userMessage);
-        insert.run(nanoid(), profileId, 'assistant', content);
+        let sequence = (db.prepare(
+          'SELECT COALESCE(MAX(sequence), 0) AS value FROM ai_chat_messages WHERE profile_id = ?',
+        ).get(profileId) as { value: number }).value;
+        insert.run(userMessageId, profileId, 'user', userMessage, ++sequence);
+        insert.run(assistantMessageId, profileId, 'assistant', content, ++sequence);
         db.prepare(
           `DELETE FROM ai_chat_messages WHERE profile_id = ? AND id NOT IN (
              SELECT id FROM ai_chat_messages WHERE profile_id = ?
-             ORDER BY created_at DESC, id DESC LIMIT 100
+             ORDER BY sequence DESC LIMIT 100
            )`,
         ).run(profileId, profileId);
       });
       saveTurn();
-      return reply.send({ role: 'assistant', content });
+      return reply.send({
+        id: assistantMessageId,
+        userMessageId,
+        role: 'assistant',
+        content,
+      });
     } catch (error) {
       logAiFailure(fastify, 'coach-chat', row, error);
+      return reply.code(502).send({ error: (error as Error).message });
+    }
+  });
+
+  fastify.put('/api/ai/chat/:id', { preHandler: requireAuth }, async (request, reply) => {
+    const parsed = EditChatMessageSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: 'Message must be 1 to 4,000 characters.' });
+    }
+    const { id } = request.params as { id: string };
+    const profileId = request.profile!.id;
+    if ('content' in parsed.data) {
+      const settings = getSettings(profileId);
+      if (settings?.coach_mode !== 'custom') {
+        return reply.code(403).send({ error: 'AI replies can only be edited in Custom personality mode.' });
+      }
+      const target = db.prepare(
+        `SELECT id FROM ai_chat_messages
+         WHERE id = ? AND profile_id = ? AND role = 'assistant'`,
+      ).get(id, profileId) as { id: string } | undefined;
+      if (!target) return reply.code(404).send({ error: 'AI reply not found.' });
+      db.prepare(
+        'UPDATE ai_chat_messages SET content = ? WHERE id = ? AND profile_id = ?',
+      ).run(parsed.data.content, id, profileId);
+      return reply.send({ id, role: 'assistant', content: parsed.data.content });
+    }
+
+    let row: AiSettingsRow;
+    let apiKey: string;
+    try {
+      row = requireUsableSettings(profileId);
+      apiKey = decryptApiKey(row);
+    } catch (error) {
+      return reply.code(400).send({ error: (error as Error).message });
+    }
+
+    const lastUser = db.prepare(
+      `SELECT id, sequence FROM ai_chat_messages
+       WHERE profile_id = ? AND role = 'user' ORDER BY sequence DESC LIMIT 1`,
+    ).get(profileId) as { id: string; sequence: number } | undefined;
+    if (!lastUser || lastUser.id !== id) {
+      return reply.code(400).send({ error: 'Only your most recent message can be edited and regenerated.' });
+    }
+
+    const identifiers = accountIdentifiers(profileId);
+    const userMessage = redactAccountNames(parsed.data.message, identifiers) ?? '';
+    const history = db.prepare(
+      `SELECT role, content FROM (
+         SELECT role, content, sequence FROM ai_chat_messages
+         WHERE profile_id = ? AND sequence < ? ORDER BY sequence DESC LIMIT ?
+       ) ORDER BY sequence ASC`,
+    ).all(profileId, lastUser.sequence, row.chat_history_limit) as Array<{
+      role: 'user' | 'assistant';
+      content: string;
+    }>;
+    const context = buildUserContext(profileId);
+    const memory = getChatMemory(profileId)?.summary.trim();
+    const messages = [
+      {
+        role: 'system' as const,
+        content: `${coachInstructions(row)}\n\n${aiIdentityContext(row, profileId)}\nComplete health and activity context. Measurement history includes standard and user-created custom fields; use each field's supplied name, unit, and history when relevant:\n${JSON.stringify(context)}${memory ? `\n\nConversation memory from earlier chats:\n${redactAccountNames(memory, identifiers)}` : ''}`,
+      },
+      ...history.map((message) => ({
+        role: message.role,
+        content: redactAccountNames(message.content, identifiers) ?? '',
+      })),
+      { role: 'user' as const, content: userMessage },
+    ];
+
+    try {
+      const content = await callChatCompletion(row, apiKey, messages);
+      const answer = db.prepare(
+        `SELECT id FROM ai_chat_messages
+         WHERE profile_id = ? AND role = 'assistant' AND sequence > ?
+         ORDER BY sequence ASC LIMIT 1`,
+      ).get(profileId, lastUser.sequence) as { id: string } | undefined;
+      const assistantMessageId = answer?.id ?? nanoid();
+      db.transaction(() => {
+        db.prepare('UPDATE ai_chat_messages SET content = ? WHERE id = ? AND profile_id = ?')
+          .run(userMessage, id, profileId);
+        if (answer) {
+          db.prepare('UPDATE ai_chat_messages SET content = ?, created_at = datetime(\'now\') WHERE id = ? AND profile_id = ?')
+            .run(content, assistantMessageId, profileId);
+        } else {
+          const nextSequence = (db.prepare(
+            'SELECT COALESCE(MAX(sequence), 0) + 1 AS value FROM ai_chat_messages WHERE profile_id = ?',
+          ).get(profileId) as { value: number }).value;
+          db.prepare(
+            `INSERT INTO ai_chat_messages (id, profile_id, role, content, sequence)
+             VALUES (?, ?, 'assistant', ?, ?)`,
+          ).run(assistantMessageId, profileId, content, nextSequence);
+        }
+      })();
+      return reply.send({
+        id: assistantMessageId,
+        userMessageId: id,
+        role: 'assistant',
+        content,
+      });
+    } catch (error) {
+      logAiFailure(fastify, 'coach-edit', row, error);
       return reply.code(502).send({ error: (error as Error).message });
     }
   });
