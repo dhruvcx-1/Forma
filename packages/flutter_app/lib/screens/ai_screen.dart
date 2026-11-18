@@ -608,7 +608,9 @@ class _AiScreenState extends State<AiScreen>
   @override
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(
-            title: const Text('AI coach & reports'),
+            title: MediaQuery.sizeOf(context).width < 600
+                ? null
+                : const Text('AI coach & reports'),
             bottom: TabBar(controller: _tabs, tabs: const [
               Tab(text: 'Coach'),
               Tab(text: 'Weekly report'),
