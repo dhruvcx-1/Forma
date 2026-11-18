@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it } from 'node:test';
+import { expect } from '../test-utils.js';
 import {
   calculateMaxIdealWeightKg,
   calculateMifflinStJeorBmr,

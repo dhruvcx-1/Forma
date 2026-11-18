@@ -1337,7 +1337,7 @@ class _DashboardLineChart extends StatelessWidget {
                 getTitlesWidget: (value, meta) {
                   final i = value.round().clamp(0, points.length - 1).toInt();
                   return SideTitleWidget(
-                      axisSide: meta.axisSide,
+                      meta: meta,
                       child: Text(_shortDate(points[i].date),
                           style: Theme.of(context)
                               .textTheme

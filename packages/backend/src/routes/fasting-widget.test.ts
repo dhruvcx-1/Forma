@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, beforeEach } from 'node:test';
+import { expect } from '../test-utils.js';
 import { fastify } from '../server.js';
 import { db } from '../db/index.js';
 

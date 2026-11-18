@@ -683,12 +683,11 @@ class _DataScreenState extends State<DataScreen> {
   }
 
   Future<void> _pickImport() async {
-    final file = await FilePicker.platform.pickFiles(
-        type: FileType.custom, allowedExtensions: ['json'], withData: true);
+    final file = await FilePicker.pickFile(
+        type: FileType.custom, allowedExtensions: ['json']);
     if (!mounted) return;
     if (file == null) return;
-    final bytes = file.files.single.bytes;
-    if (bytes == null) return;
+    final bytes = await file.readAsBytes();
     input.text = utf8.decode(bytes);
     setState(() => preview = null);
   }

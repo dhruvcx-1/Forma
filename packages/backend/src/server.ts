@@ -127,7 +127,9 @@ fastify.get('/api/health', async (_request, reply) => {
 // ---------------------------------------------------------------------------
 
 fastify.setErrorHandler((error, request, reply) => {
-  const statusCode = error.statusCode ?? 500;
+  const knownError =
+    error instanceof Error ? (error as Error & { statusCode?: number }) : null;
+  const statusCode = knownError?.statusCode ?? 500;
 
   fastify.log.error({ err: error, url: request.url }, 'Unhandled error');
 
@@ -135,7 +137,7 @@ fastify.setErrorHandler((error, request, reply) => {
   const message =
     isProduction && statusCode >= 500
       ? 'Internal server error'
-      : (error.message ?? 'Internal server error');
+      : (knownError?.message ?? 'Internal server error');
 
   return reply.code(statusCode).send({ error: message });
 });

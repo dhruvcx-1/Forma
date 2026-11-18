@@ -667,10 +667,10 @@ class _MeasurementsScreenState extends State<MeasurementsScreen> {
   void _load() {
     _resetZoneInputs();
     _data = Future.wait<dynamic>([
-        widget.api.getList('/measurements/definitions'),
-        widget.api.getList('/measurements/entries'),
-        widget.api.getMap('/body-composition')
-      ]).then((v) => (asList(v[0]), asList(v[1]), asJson(v[2])));
+      widget.api.getList('/measurements/definitions'),
+      widget.api.getList('/measurements/entries'),
+      widget.api.getMap('/body-composition')
+    ]).then((v) => (asList(v[0]), asList(v[1]), asJson(v[2])));
   }
 
   Future<void> _saveZoneMeasurements(
@@ -1360,17 +1360,18 @@ class _MeasurementsScreenState extends State<MeasurementsScreen> {
                                               child: TextField(
                                                   controller: _zoneController(
                                                       str(definition['id']),
-                                                      latest[str(definition[
-                                                          'id'])]),
+                                                      latest[str(
+                                                          definition['id'])]),
                                                   keyboardType:
                                                       const TextInputType
                                                           .numberWithOptions(
-                                                              decimal: true),
+                                                          decimal: true),
                                                   decoration: InputDecoration(
                                                       labelText: str(
                                                           definition['name']),
                                                       suffixText: str(
-                                                          definition['unit'])))),
+                                                          definition[
+                                                              'unit'])))),
                                       ]);
                                 }),
                               ])));
@@ -1384,8 +1385,7 @@ class _MeasurementsScreenState extends State<MeasurementsScreen> {
                           ? const SizedBox(
                               width: 18,
                               height: 18,
-                              child: CircularProgressIndicator(
-                                  strokeWidth: 2))
+                              child: CircularProgressIndicator(strokeWidth: 2))
                           : const Icon(Icons.save_outlined),
                       label: Text(_savingZoneBatch
                           ? 'Saving measurements…'
@@ -1473,8 +1473,7 @@ class _MeasurementHistoryTabs extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (definitions.isEmpty) {
-      return _MeasurementTrendChart(
-          definitions: definitions, entries: entries);
+      return _MeasurementTrendChart(definitions: definitions, entries: entries);
     }
 
     final unitsWithEntries = <String>{};
@@ -1484,9 +1483,8 @@ class _MeasurementHistoryTabs extends StatelessWidget {
         unitsWithEntries.add(str(definition['unit'], 'units').toLowerCase());
       }
     }
-    final allChartHeight = unitsWithEntries.isEmpty
-        ? 360.0
-        : unitsWithEntries.length * 400.0;
+    final allChartHeight =
+        unitsWithEntries.isEmpty ? 360.0 : unitsWithEntries.length * 400.0;
 
     return DefaultTabController(
       length: definitions.length + 1,
@@ -1639,18 +1637,10 @@ class _MeasurementTrendUnitChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final allSpots = series.expand((line) => line.spots).toList();
-    final minX = allSpots
-        .map((spot) => spot.x)
-        .reduce((a, b) => a < b ? a : b);
-    final maxX = allSpots
-        .map((spot) => spot.x)
-        .reduce((a, b) => a > b ? a : b);
-    final minY = allSpots
-        .map((spot) => spot.y)
-        .reduce((a, b) => a < b ? a : b);
-    final maxY = allSpots
-        .map((spot) => spot.y)
-        .reduce((a, b) => a > b ? a : b);
+    final minX = allSpots.map((spot) => spot.x).reduce((a, b) => a < b ? a : b);
+    final maxX = allSpots.map((spot) => spot.x).reduce((a, b) => a > b ? a : b);
+    final minY = allSpots.map((spot) => spot.y).reduce((a, b) => a < b ? a : b);
+    final maxY = allSpots.map((spot) => spot.y).reduce((a, b) => a > b ? a : b);
     const oneDayMs = 86400000.0;
     final xRange = maxX - minX;
     final chartMinX = xRange == 0 ? minX - oneDayMs : minX;
@@ -1691,11 +1681,11 @@ class _MeasurementTrendUnitChart extends StatelessWidget {
                 reservedSize: 32,
                 interval: chartXRange / 4,
                 getTitlesWidget: (value, meta) {
-                  final date = DateTime.fromMillisecondsSinceEpoch(
-                          value.round())
-                      .toLocal();
+                  final date =
+                      DateTime.fromMillisecondsSinceEpoch(value.round())
+                          .toLocal();
                   return SideTitleWidget(
-                      axisSide: meta.axisSide,
+                      meta: meta,
                       child: Text('${date.month}/${date.day}',
                           style: Theme.of(context).textTheme.labelSmall));
                 })),
@@ -1703,15 +1693,14 @@ class _MeasurementTrendUnitChart extends StatelessWidget {
       lineTouchData: LineTouchData(
           touchTooltipData: LineTouchTooltipData(
               getTooltipItems: (spots) => spots.map((spot) {
-                    final date = DateTime.fromMillisecondsSinceEpoch(
-                            spot.x.round())
-                        .toLocal();
+                    final date =
+                        DateTime.fromMillisecondsSinceEpoch(spot.x.round())
+                            .toLocal();
                     final name = series[spot.barIndex].name;
                     return LineTooltipItem(
                         '$name\n${spot.y.toStringAsFixed(1)} $unit · ${date.month}/${date.day}/${date.year}',
                         const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600));
+                            color: Colors.white, fontWeight: FontWeight.w600));
                   }).toList())),
       lineBarsData: [
         for (final line in series)

@@ -132,8 +132,7 @@ class _FormaAppState extends State<FormaApp> {
                   path: '/settings',
                   builder: (_, __) => SettingsScreen(api: widget.api)),
               GoRoute(
-                  path: '/ai',
-                  builder: (_, __) => AiScreen(api: widget.api)),
+                  path: '/ai', builder: (_, __) => AiScreen(api: widget.api)),
               GoRoute(
                   path: '/data',
                   builder: (_, __) => DataScreen(api: widget.api)),

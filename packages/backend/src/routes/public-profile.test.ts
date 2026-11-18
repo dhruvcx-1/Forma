@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, before as beforeAll } from 'node:test';
+import { expect } from '../test-utils.js';
 import { db } from '../db/index.js';
 import { runMigrations } from '../db/migrations.js';
 import fastify from '../server.js';
