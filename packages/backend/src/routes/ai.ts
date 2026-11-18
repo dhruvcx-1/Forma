@@ -1,4 +1,4 @@
-import type { FastifyPluginAsync } from 'fastify';
+import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 import { isIP } from 'node:net';
 import { nanoid } from 'nanoid';
@@ -19,6 +19,17 @@ interface AiSettingsRow {
   api_key_iv: Buffer | null;
   api_key_tag: Buffer | null;
   updated_at: string;
+}
+
+class AiProviderError extends Error {
+  constructor(
+    message: string,
+    readonly statusCode?: number,
+    readonly code?: string,
+  ) {
+    super(message);
+    this.name = 'AiProviderError';
+  }
 }
 
 const CoachModeSchema = z.enum(['experienced', 'friend', 'edgy', 'custom']);
@@ -202,11 +213,32 @@ async function callChatCompletion(
       }),
       signal: AbortSignal.timeout(60000),
     });
-  } catch {
-    throw new Error('Could not connect to the configured AI provider. Check the base URL and try again.');
+  } catch (error) {
+    const cause = (error as { cause?: { code?: unknown } })?.cause;
+    const code = typeof cause?.code === 'string'
+      ? cause.code
+      : error instanceof Error
+        ? error.name
+        : undefined;
+    throw new AiProviderError(
+      error instanceof Error && error.name === 'TimeoutError'
+        ? 'The AI provider request timed out. Try again or use a provider with a faster response.'
+        : 'Could not connect to the configured AI provider. Check the base URL and server network connection.',
+      undefined,
+      code,
+    );
   }
   if (!response.ok) {
-    throw new Error(`The AI provider returned HTTP ${response.status}. Check the token, model, and provider settings.`);
+    const message = response.status === 401 || response.status === 403
+      ? `The AI provider rejected the API token (HTTP ${response.status}). Check the token and provider account.`
+      : response.status === 404
+        ? 'The AI provider could not find the configured endpoint or model (HTTP 404). Check the base URL and model ID.'
+        : response.status === 429
+          ? 'The AI provider rate limited this request (HTTP 429). Check your provider quota or try again later.'
+          : response.status >= 500
+            ? `The AI provider is unavailable (HTTP ${response.status}). Try again later.`
+            : `The AI provider rejected the request (HTTP ${response.status}). Check that the model supports Chat Completions.`;
+    throw new AiProviderError(message, response.status);
   }
   const data = (await response.json()) as {
     choices?: Array<{ message?: { content?: string | Array<{ text?: string }> } }>;
@@ -218,6 +250,34 @@ async function callChatCompletion(
     if (combined) return combined;
   }
   throw new Error('The AI provider returned an empty response.');
+}
+
+function logAiFailure(
+  fastify: FastifyInstance,
+  feature: string,
+  row: AiSettingsRow | undefined,
+  error: unknown,
+): void {
+  let providerHost: string | undefined;
+  if (row?.base_url) {
+    try {
+      providerHost = new URL(row.base_url).hostname;
+    } catch {
+      providerHost = undefined;
+    }
+  }
+  const providerError = error instanceof AiProviderError ? error : undefined;
+  fastify.log.warn(
+    {
+      feature,
+      providerHost,
+      model: row?.model,
+      providerStatus: providerError?.statusCode,
+      providerErrorCode: providerError?.code,
+      error: error instanceof Error ? error.message : 'Unknown AI provider error',
+    },
+    'AI provider request failed',
+  );
 }
 
 function accountIdentifiers(profileId: string): string[] {
@@ -466,6 +526,10 @@ const aiRoutes: FastifyPluginAsync = async (fastify) => {
       try {
         encrypted = encryptApiKey(data.apiKey.trim());
       } catch (error) {
+      fastify.log.warn(
+        { error: (error as Error).message },
+        'AI settings could not encrypt the provider token',
+      );
         return reply.code(503).send({ error: (error as Error).message });
       }
     }
@@ -523,6 +587,7 @@ const aiRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.send({ ok: true });
     } catch (error) {
       const message = (error as Error).message;
+      logAiFailure(fastify, 'provider-test', row, error);
       return reply
         .code(message.includes('FORMA_AI_ENCRYPTION_KEY') ? 503 : 502)
         .send({ error: message });
@@ -559,6 +624,7 @@ const aiRoutes: FastifyPluginAsync = async (fastify) => {
       ).run(id, profileId, start, end, content);
       return reply.send({ id, weekStart: start, weekEnd: end, content });
     } catch (error) {
+      logAiFailure(fastify, 'weekly-report', row, error);
       return reply.code(502).send({ error: (error as Error).message });
     }
   });
@@ -645,6 +711,7 @@ const aiRoutes: FastifyPluginAsync = async (fastify) => {
       saveTurn();
       return reply.send({ role: 'assistant', content });
     } catch (error) {
+      logAiFailure(fastify, 'coach-chat', row, error);
       return reply.code(502).send({ error: (error as Error).message });
     }
   });
