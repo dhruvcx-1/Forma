@@ -15,6 +15,9 @@ services:
       DATABASE_PATH: /app/data/body-tracker.db
       PHOTOS_PATH: /app/data/photos
       CORS_ORIGIN: ${PUBLIC_URL:-}
+      # Optional BYOK AI. Generate a stable base64 key with: openssl rand -base64 32
+      FORMA_AI_ENCRYPTION_KEY: ${FORMA_AI_ENCRYPTION_KEY:-}
+      FORMA_AI_ALLOW_HTTP_BASE_URL: ${FORMA_AI_ALLOW_HTTP_BASE_URL:-false}
     # Direct host access for clients and API integration: http://HOST:3001/api
     ports:
       - "${EXTERNAL_PORT:-3001}:3001"

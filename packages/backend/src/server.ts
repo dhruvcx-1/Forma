@@ -22,6 +22,7 @@ import publicRoutes from './routes/public.js';
 import adminRoutes from './routes/admin.js';
 import fastingRoutes from './routes/fasting.js';
 import nutritionRoutes from './routes/nutrition.js';
+import aiRoutes from './routes/ai.js';
 
 // ---------------------------------------------------------------------------
 // Environment validation
@@ -111,6 +112,7 @@ await fastify.register(publicRoutes);
 await fastify.register(adminRoutes);
 await fastify.register(fastingRoutes);
 await fastify.register(nutritionRoutes);
+await fastify.register(aiRoutes);
 
 // ---------------------------------------------------------------------------
 // Health check

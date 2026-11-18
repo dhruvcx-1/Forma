@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import 'data/api_client.dart';
 import 'screens/auth_screen.dart';
+import 'screens/ai_screen.dart';
 import 'screens/feature_screens.dart';
 import 'screens/home_screen.dart';
 import 'screens/onboarding_screen.dart';
@@ -131,6 +132,9 @@ class _FormaAppState extends State<FormaApp> {
                   path: '/settings',
                   builder: (_, __) => SettingsScreen(api: widget.api)),
               GoRoute(
+                  path: '/ai',
+                  builder: (_, __) => AiScreen(api: widget.api)),
+              GoRoute(
                   path: '/data',
                   builder: (_, __) => DataScreen(api: widget.api)),
               GoRoute(
@@ -189,6 +193,7 @@ class FormaShell extends StatelessWidget {
     ('/photos', 'Photos', Icons.photo_library_outlined),
     ('/data', 'Data & backups', Icons.file_download_outlined),
     ('/settings', 'Settings', Icons.tune_outlined),
+    ('/ai', 'AI coach & reports', Icons.auto_awesome_outlined),
   ];
 
   int get selected => destinations

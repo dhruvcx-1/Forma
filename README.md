@@ -44,6 +44,7 @@ Forma brings everything together in a single, thoughtfully designed application.
 | 👤 **Personal Profile** | Manage your personal information and application preferences. |
 | 📦 **Data Portability** | Export and back up your records. |
 | 🛡️ **Administration** | Manage accounts and registration settings as an administrator. |
+| 🤖 **Optional AI coach & reports** | Bring your own compatible API provider for on-demand weekly summaries and a training coach with preset or custom personality prompts. |
 
 ### 📱 One app. Multiple platforms.
 
@@ -63,6 +64,14 @@ Forma is designed around self-hosting and data ownership.
 - No mandatory cloud account or third-party fitness subscription.
 
 **You own the infrastructure. You control the data.**
+
+### Optional AI features (BYOK)
+
+AI features are off until each user enables them and configures a provider URL, model, and API token under **AI coach & reports → Setup**. The app supports OpenAI-compatible Chat Completions providers. Reports compare the latest 7 days with the preceding 7 days; coach settings include three presets and a custom system prompt. Fixed safety boundaries apply to every coach mode.
+
+The provider token is encrypted on the Forma server. Before enabling AI, set `FORMA_AI_ENCRYPTION_KEY` to a stable base64-encoded 32-byte key in the server environment (for example, `openssl rand -base64 32`). Keep it backed up and private; replacing it makes saved provider tokens unreadable. HTTPS is required for remote provider URLs.
+
+When a user requests a report or coach reply, Forma sends relevant health records (profile health settings, weight and measurement history, goals, nutrition, and fasting) to that user’s configured provider. Account name, username, biography, avatar, and progress photos are excluded. Free-text notes and chat entries are also checked to redact the account name and username. Review the provider’s data handling terms before use; the provider may process or retain submitted data under its own policies.
 
 > **A quick health note:** BMI, body-fat, energy, and ratio values are estimates based on the information entered. Forma is a personal tracking tool, not a medical diagnostic service.
 

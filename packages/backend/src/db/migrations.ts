@@ -245,6 +245,43 @@ const migrations: Record<number, Migration> = {
       CREATE INDEX IF NOT EXISTS idx_nutrition_logs_date ON daily_nutrition_logs(profile_id, date DESC);
     `);
   },
+  5: (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS ai_provider_settings (
+        profile_id TEXT PRIMARY KEY REFERENCES profiles(id) ON DELETE CASCADE,
+        enabled INTEGER NOT NULL DEFAULT 0,
+        base_url TEXT NOT NULL DEFAULT 'https://api.openai.com/v1',
+        model TEXT NOT NULL DEFAULT '',
+        coach_mode TEXT NOT NULL DEFAULT 'friend',
+        custom_coach_prompt TEXT NOT NULL DEFAULT '',
+        api_key_ciphertext BLOB,
+        api_key_iv BLOB,
+        api_key_tag BLOB,
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+
+      CREATE TABLE IF NOT EXISTS ai_chat_messages (
+        id TEXT PRIMARY KEY,
+        profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+        role TEXT NOT NULL CHECK(role IN ('user', 'assistant')),
+        content TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_ai_chat_profile_created
+        ON ai_chat_messages(profile_id, created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS ai_weekly_reports (
+        id TEXT PRIMARY KEY,
+        profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+        week_start TEXT NOT NULL,
+        week_end TEXT NOT NULL,
+        content TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_ai_reports_profile_created
+        ON ai_weekly_reports(profile_id, created_at DESC);
+    `);
+  },
 };
 
 // ---------------------------------------------------------------------------
