@@ -3,7 +3,7 @@
 # ============================================================
 # Stage 1: Build backend
 # ============================================================
-FROM node:22-alpine AS backend-builder
+FROM node:24-alpine AS backend-builder
 
 WORKDIR /build
 
@@ -21,7 +21,7 @@ RUN npm run build
 # ============================================================
 # Flutter Web output is architecture-independent, so build it on BuildKit's
 # native build platform and copy the static bundle into each runtime image.
-FROM --platform=$BUILDPLATFORM node:22-bookworm-slim AS flutter-web-builder
+FROM --platform=$BUILDPLATFORM node:24-bookworm-slim AS flutter-web-builder
 
 ARG FLUTTER_VERSION=3.47.9
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -41,7 +41,7 @@ RUN flutter build web --release
 # ============================================================
 # Stage 3: Production runtime
 # ============================================================
-FROM node:22-alpine AS runtime
+FROM node:24-alpine AS runtime
 
 # Security: non-root user
 RUN addgroup -S forma && adduser -S forma -G forma

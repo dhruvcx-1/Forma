@@ -13,7 +13,7 @@ Just you, your progress, and a server you control.
 [![Build and publish](https://github.com/dhruvcx-1/Forma/actions/workflows/publish.yml/badge.svg)](https://github.com/dhruvcx-1/Forma/actions/workflows/publish.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Flutter](https://img.shields.io/badge/Flutter-Material%203-02569B?logo=flutter)](https://flutter.dev)
-[![Node.js](https://img.shields.io/badge/Node.js-22-339933?logo=node.js)](https://nodejs.org)
+[![Node.js](https://img.shields.io/badge/Node.js-24_LTS-339933?logo=node.js)](https://nodejs.org)
 
 ---
 
@@ -397,7 +397,7 @@ Forma combines a modern cross-platform frontend with a lightweight, self-hostabl
 | Frontend | Flutter & Dart |
 | Design system | Material 3 |
 | Charts | `fl_chart` & custom Flutter widgets |
-| Backend | Node.js 22, Fastify & TypeScript |
+| Backend | Node.js 24 LTS, Fastify & TypeScript |
 | Validation | Zod |
 | Database | SQLite (`better-sqlite3`) with WAL |
 | Authentication | Argon2id password hashing |
