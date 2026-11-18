@@ -67,6 +67,9 @@ jobs:
 
   build-android:
     name: Build Android APK
+    needs: [validate, build-and-push]
+    # Build the APK only for version-tag releases, after the Docker image is pushed.
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -193,7 +196,7 @@ jobs:
 
   publish-android-release:
     name: Attach APK to GitHub Release
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     needs: build-android
     runs-on: ubuntu-latest
     permissions:
@@ -246,9 +249,8 @@ jobs:
           fail_on_unmatched_files: true
 
   build-and-push:
-    # Publish the container only when validation and the Android APK build from
-    # this same commit have both succeeded.
-    needs: [validate, build-android]
+    # Push Docker images on Git pushes. Android release builds run afterward only for version tags.
+    needs: [validate]
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
