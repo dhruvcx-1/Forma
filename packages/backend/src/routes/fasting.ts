@@ -4,6 +4,8 @@ import { nanoid } from 'nanoid';
 import { db } from '../db/index.js';
 import { requireAuth } from '../auth/plugin.js';
 
+const MIN_RECORDED_FAST_HOURS = 8;
+
 // ---------------------------------------------------------------------------
 // Zod Schemas
 // ---------------------------------------------------------------------------
@@ -138,6 +140,29 @@ const fastingRoutes: FastifyPluginAsync = async (fastify) => {
       const finishTime = ended_at || new Date().toISOString();
       const updatedNotes = notes !== undefined ? notes : activeFast.notes;
 
+      const durationHours =
+        (new Date(finishTime).getTime() -
+          new Date(activeFast.started_at).getTime()) /
+        (1000 * 60 * 60);
+
+      // Ending a fast early should always be allowed, but short sessions are
+      // not saved as completed fasting records or included in progress stats.
+      if (
+        status === 'completed' &&
+        durationHours < MIN_RECORDED_FAST_HOURS
+      ) {
+        db.prepare(
+          `DELETE FROM fasting_sessions WHERE id = ? AND profile_id = ?`
+        ).run(activeFast.id, profileId);
+
+        return reply.send({
+          recorded: false,
+          reason: 'minimum_duration',
+          minimumHours: MIN_RECORDED_FAST_HOURS,
+          durationHours: Math.max(0, durationHours),
+        });
+      }
+
       db.prepare(
         `UPDATE fasting_sessions 
          SET ended_at = ?, status = ?, notes = ?, mood = ?, updated_at = datetime('now')
@@ -234,9 +259,14 @@ const fastingRoutes: FastifyPluginAsync = async (fastify) => {
         .prepare(
           `SELECT * FROM fasting_sessions 
            WHERE profile_id = ? AND status != 'active'
+             AND (
+               status != 'completed' OR
+               (ended_at IS NOT NULL AND
+                (julianday(ended_at) - julianday(started_at)) * 24 >= ?)
+             )
            ORDER BY started_at DESC LIMIT 100`
         )
-        .all(profileId) as any[];
+        .all(profileId, MIN_RECORDED_FAST_HOURS) as any[];
 
       // Calculate statistics
       let totalHoursFasted = 0;

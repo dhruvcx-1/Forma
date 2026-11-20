@@ -564,7 +564,10 @@ function buildUserContext(profileId: string) {
     .prepare(
       `SELECT fast_type, target_duration_hours, started_at, ended_at,
               status, notes, mood
-       FROM fasting_sessions WHERE profile_id = ? ORDER BY started_at ASC`,
+       FROM fasting_sessions WHERE profile_id = ?
+         AND (status != 'completed' OR (ended_at IS NOT NULL AND
+              (julianday(ended_at) - julianday(started_at)) * 24 >= 8))
+       ORDER BY started_at ASC`,
     )
     .all(profileId) as Array<{
     fast_type: string;
@@ -660,6 +663,8 @@ function getWeeklySnapshot(profileId: string, from: string, to: string) {
       .prepare(
         `SELECT fast_type, target_duration_hours, started_at, ended_at, status, notes, mood
          FROM fasting_sessions WHERE profile_id = ? AND started_at >= ? AND started_at < ?
+           AND (status != 'completed' OR (ended_at IS NOT NULL AND
+                (julianday(ended_at) - julianday(started_at)) * 24 >= 8))
          ORDER BY started_at ASC`,
       )
       .all(profileId, `${from}T00:00:00`, `${shiftDate(to, 1)}T00:00:00`)

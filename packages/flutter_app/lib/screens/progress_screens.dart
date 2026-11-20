@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -861,10 +862,13 @@ class _FastingScreenState extends State<FastingScreen> {
         const Duration(seconds: 1), (_) => mounted ? setState(() {}) : null);
   }
 
-  void _load() => _data = Future.wait<dynamic>([
-        widget.api.getMap('/fasting/active'),
-        widget.api.getMap('/fasting/history')
-      ]).then((v) => (asJson(v[0]), asJson(v[1])));
+  void _load() {
+    _data = Future.wait<dynamic>([
+      widget.api.getMap('/fasting/active'),
+      widget.api.getMap('/fasting/history')
+    ]).then((v) => (asJson(v[0]), asJson(v[1])));
+  }
+
   @override
   void dispose() {
     _clock?.cancel();
@@ -873,8 +877,9 @@ class _FastingScreenState extends State<FastingScreen> {
 
   Future<void> _start() async {
     try {
+      final hours = int.parse(duration);
       await widget.api.post('/fasting/start', {
-        'fast_type': '$duration:8',
+        'fast_type': hours < 24 ? '$hours:${24 - hours}' : '$hours-hour fast',
         'target_duration_hours': numVal(duration)
       });
       if (!mounted) return;
@@ -887,9 +892,19 @@ class _FastingScreenState extends State<FastingScreen> {
 
   Future<void> _end() async {
     try {
-      await widget.api.post('/fasting/end', {'status': 'completed'});
+      final result =
+          await widget.api.post('/fasting/end', {'status': 'completed'});
       if (!mounted) return;
       setState(_load);
+      if (result['recorded'] == false) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Fast ended. Sessions under 8 hours are not saved to history.',
+            ),
+          ),
+        );
+      }
     } catch (e) {
       if (!mounted) return;
       await showFormaError(context, e);
@@ -1008,378 +1023,583 @@ class _FastingScreenState extends State<FastingScreen> {
             ((hours - currentStage.$1) / (currentStage.$2 - currentStage.$1))
                 .clamp(0.0, 1.0)
                 .toDouble();
-        return ListView(padding: const EdgeInsets.all(22), children: [
-          PageHeading('Fasting',
-              subtitle:
-                  'A live timer and a clear view of your fasting history.'),
-          SectionCard(
-              padding: const EdgeInsets.all(22),
-              child: LayoutBuilder(builder: (context, constraints) {
-                final compact = constraints.maxWidth < 720;
-                final timer = Column(mainAxisSize: MainAxisSize.min, children: [
-                  if (active.isNotEmpty) ...[
-                    SizedBox(
-                        width: 220,
-                        height: 220,
-                        child: Stack(alignment: Alignment.center, children: [
-                          SizedBox.expand(
-                              child: CircularProgressIndicator(
-                                  value: p,
-                                  strokeWidth: 13,
-                                  backgroundColor: Theme.of(context)
-                                      .colorScheme
-                                      .surfaceContainerHighest)),
-                          Column(mainAxisSize: MainAxisSize.min, children: [
-                            Text(currentStage.$3.toUpperCase(),
-                                textAlign: TextAlign.center,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .labelSmall
-                                    ?.copyWith(
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .primary,
-                                        fontWeight: FontWeight.w800)),
-                            const SizedBox(height: 8),
-                            Text(_duration(hours),
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .headlineMedium
-                                    ?.copyWith(
-                                        fontWeight: FontWeight.w700,
-                                        fontFeatures: [
-                                      const FontFeature.tabularFigures()
-                                    ])),
-                            Text(
-                                '${(target - hours).clamp(0, target).toStringAsFixed(1)} h to target',
-                                style: Theme.of(context).textTheme.bodySmall),
-                          ])
-                        ])),
-                    FilledButton.icon(
-                        onPressed: _end,
-                        icon: const Icon(Icons.stop_circle_outlined),
-                        label: const Text('End fast'))
-                  ] else ...[
-                    Text('Start a fast',
-                        style: Theme.of(context).textTheme.titleLarge),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                        initialValue: duration,
-                        decoration:
-                            const InputDecoration(labelText: 'Schedule'),
-                        items: const [
-                          '12',
-                          '14',
-                          '16',
-                          '18',
-                          '20',
-                          '24',
-                          '36',
-                          '48'
-                        ]
-                            .map((v) => DropdownMenuItem(
-                                value: v, child: Text('$v hours')))
-                            .toList(),
-                        onChanged: (v) => setState(() => duration = v ?? '16')),
-                    const SizedBox(height: 14),
-                    FilledButton.icon(
-                        onPressed: _start,
-                        icon: const Icon(Icons.play_arrow),
-                        label: const Text('Start fasting timer'))
-                  ]
-                ]);
-                final biology = Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                          active.isNotEmpty
-                              ? 'CURRENT FASTING STAGE'
-                              : 'YOUR FASTING PLAN',
-                          style: Theme.of(context)
-                              .textTheme
-                              .labelMedium
-                              ?.copyWith(
-                                  color: Theme.of(context).colorScheme.primary,
-                                  letterSpacing: 1.1,
-                                  fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 7),
-                      Text(
-                          active.isNotEmpty
-                              ? currentStage.$3
-                              : 'Choose a schedule that works for you',
-                          style: Theme.of(context)
-                              .textTheme
-                              .headlineSmall
-                              ?.copyWith(fontWeight: FontWeight.w700)),
-                      Text(
-                          active.isNotEmpty
-                              ? currentStage.$4
-                              : 'Start the timer when your fasting window begins.',
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleSmall
-                              ?.copyWith(
-                                  color:
-                                      Theme.of(context).colorScheme.primary)),
+        final colors = Theme.of(context).colorScheme;
+        return ListView(
+            padding: EdgeInsets.all(
+                MediaQuery.sizeOf(context).width < 600 ? 16 : 24),
+            children: [
+              PageHeading('Fasting',
+                  subtitle:
+                      'A live timer and a clear view of your fasting history.'),
+              SectionCard(
+                  padding: EdgeInsets.zero,
+                  child: LayoutBuilder(builder: (context, constraints) {
+                    final compact = constraints.maxWidth < 720;
+                    final dialSize = compact ? 192.0 : 216.0;
+                    final timer =
+                        Column(mainAxisSize: MainAxisSize.min, children: [
                       if (active.isNotEmpty) ...[
-                        const SizedBox(height: 12),
-                        Text(currentStage.$5,
-                            style: Theme.of(context).textTheme.bodyMedium),
-                        const SizedBox(height: 14),
-                        Text('What to keep in mind',
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleSmall
-                                ?.copyWith(fontWeight: FontWeight.w700)),
-                        const SizedBox(height: 6),
-                        for (final item in currentStage.$6)
-                          Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 3),
-                              child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Icon(Icons.circle,
-                                        size: 7,
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .primary),
-                                    const SizedBox(width: 9),
-                                    Expanded(
-                                        child: Text(item,
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .bodySmall))
-                                  ])),
-                        const SizedBox(height: 8),
-                        ClipRRect(
-                            borderRadius: BorderRadius.circular(99),
-                            child: LinearProgressIndicator(
-                                value: stageProgress, minHeight: 6)),
-                        if (nextStage != null)
-                          Padding(
-                              padding: const EdgeInsets.only(top: 8),
-                              child: Text(
-                                  'Next stage in ${((nextStage.$1 - hours).clamp(0, 999)).toStringAsFixed(1)} hours',
-                                  style:
-                                      Theme.of(context).textTheme.labelLarge)),
-                      ]
-                    ]);
-                return compact
-                    ? Column(
-                        children: [timer, const SizedBox(height: 20), biology])
-                    : Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                            SizedBox(width: 250, child: timer),
-                            const SizedBox(width: 24),
-                            Expanded(child: biology)
-                          ]);
-              })),
-          const SizedBox(height: 14),
-          MetricGrid(children: [
-            MetricTile(
-                label: 'Completed fasts',
-                value: str(stats['completedFasts'], '0'),
-                detail: 'Sessions completed',
-                icon: Icons.check_circle_outline),
-            MetricTile(
-                label: 'Hours fasted',
-                value: str(stats['totalHoursFasted'], '0'),
-                detail: 'Total recorded time',
-                icon: Icons.schedule),
-            MetricTile(
-                label: 'Longest fast',
-                value: '${str(stats['longestFastHours'], '0')} h',
-                detail: 'Personal best',
-                icon: Icons.emoji_events_outlined)
-          ]),
-          const SizedBox(height: 14),
-          SectionCard(
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                Text('History', style: Theme.of(context).textTheme.titleLarge),
-                if (sessions.isEmpty)
-                  emptyMessage(context, 'Your completed fasts will appear here',
-                      'Start a fast to begin your history.'),
-                for (final raw in sessions)
-                  Builder(builder: (context) {
-                    final s = asJson(raw);
-                    final delta = DateTime.tryParse(str(s['ended_at'], ''))
-                            ?.difference(
-                                DateTime.tryParse(str(s['started_at'], '')) ??
-                                    DateTime.now())
-                            .inMinutes ??
-                        0;
-                    return ListTile(
-                        leading: const Icon(Icons.history),
-                        title: Text(
-                            '${s['fast_type']} · ${(delta / 60).toStringAsFixed(1)} hours'),
-                        subtitle: Text(
-                            '${displayDate(s['started_at'])} – ${displayDate(s['ended_at'])} · ${str(s['status'])}'),
-                        trailing: IconButton(
-                            tooltip: 'Delete record',
-                            icon: const Icon(Icons.delete_outline),
-                            onPressed: () async {
-                              if (!await confirmAction(
-                                  context,
-                                  'Delete fasting record?',
-                                  'This removes this session from your history.')) {
-                                return;
-                              }
-                              try {
-                                await widget.api.delete('/fasting/${s['id']}');
-                                if (context.mounted) setState(_load);
-                              } catch (e) {
-                                if (context.mounted) {
-                                  await showFormaError(context, e);
-                                }
-                              }
-                            }));
-                  })
-              ])),
-          const SizedBox(height: 14),
-          if (active.isNotEmpty)
-            SectionCard(
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                  Text('Fasting timeline',
-                      style: Theme.of(context).textTheme.titleLarge),
-                  const SizedBox(height: 4),
-                  Text(
-                      'Illustrative milestones only; individual responses vary.',
-                      style: Theme.of(context).textTheme.bodySmall),
-                  const SizedBox(height: 14),
-                  LayoutBuilder(builder: (context, box) {
-                    final columns = box.maxWidth >= 1000
-                        ? 4
-                        : box.maxWidth >= 600
-                            ? 2
-                            : 1;
-                    final width = (box.maxWidth - (columns - 1) * 10) / columns;
-                    return Wrap(spacing: 10, runSpacing: 10, children: [
-                      for (var i = 0; i < stages.length; i++)
                         SizedBox(
-                            width: width,
-                            child: Container(
-                                padding: const EdgeInsets.all(14),
-                                decoration: BoxDecoration(
-                                    color: i == stageIndex
-                                        ? Theme.of(context)
-                                            .colorScheme
-                                            .primaryContainer
-                                            .withValues(alpha: .45)
-                                        : Theme.of(context)
-                                            .colorScheme
-                                            .surfaceContainerLow,
-                                    border: Border.all(
-                                        color: i == stageIndex
-                                            ? Theme.of(context)
-                                                .colorScheme
-                                                .primary
-                                            : Theme.of(context)
-                                                .colorScheme
-                                                .outlineVariant),
-                                    borderRadius: BorderRadius.circular(16)),
-                                child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                          '${stages[i].$1.toInt()}–${stages[i].$2.toInt()} h',
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .labelMedium
-                                              ?.copyWith(
-                                                  fontWeight: FontWeight.w700)),
-                                      const SizedBox(height: 6),
-                                      Text(stages[i].$3,
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .titleSmall
-                                              ?.copyWith(
-                                                  fontWeight: FontWeight.w700)),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                          i < stageIndex
-                                              ? 'Elapsed'
-                                              : i == stageIndex
-                                                  ? 'Current'
-                                                  : 'Upcoming',
+                            width: dialSize,
+                            height: dialSize,
+                            child: CustomPaint(
+                                painter: _WavyDialPainter(
+                                    progress: p,
+                                    trackColor: (Theme.of(context).brightness ==
+                                                Brightness.dark
+                                            ? const Color(0xFF80DED3)
+                                            : const Color(0xFF287F76))
+                                        .withValues(alpha: .18),
+                                    progressColor:
+                                        Theme.of(context).brightness ==
+                                                Brightness.dark
+                                            ? const Color(0xFF80DED3)
+                                            : const Color(0xFF287F76)),
+                                child: Center(
+                                    child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                      Text(currentStage.$3.toUpperCase(),
+                                          textAlign: TextAlign.center,
                                           style: Theme.of(context)
                                               .textTheme
                                               .labelSmall
                                               ?.copyWith(
-                                                  color: i == stageIndex
-                                                      ? Theme.of(context)
-                                                          .colorScheme
-                                                          .primary
-                                                      : null))
-                                    ]))),
+                                                  color: Theme.of(context)
+                                                              .brightness ==
+                                                          Brightness.dark
+                                                      ? const Color(0xFF80DED3)
+                                                      : const Color(0xFF287F76),
+                                                  fontWeight: FontWeight.w800)),
+                                      const SizedBox(height: 8),
+                                      Text(_duration(hours),
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .headlineMedium
+                                              ?.copyWith(
+                                                  fontWeight: FontWeight.w700,
+                                                  fontFeatures: [
+                                                const FontFeature
+                                                    .tabularFigures()
+                                              ])),
+                                      Text(
+                                          '${(target - hours).clamp(0, target).toStringAsFixed(1)} h to target',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall),
+                                    ])))),
+                        FilledButton.icon(
+                            onPressed: _end,
+                            icon: const Icon(Icons.stop_circle_outlined),
+                            label: const Text('End fast'))
+                      ] else ...[
+                        Text('Start a fast',
+                            style: Theme.of(context).textTheme.titleLarge),
+                        const SizedBox(height: 12),
+                        DropdownButtonFormField<String>(
+                            initialValue: duration,
+                            decoration:
+                                const InputDecoration(labelText: 'Schedule'),
+                            items: const [
+                              '12',
+                              '14',
+                              '16',
+                              '18',
+                              '20',
+                              '24',
+                              '36',
+                              '48',
+                              '72',
+                              '96',
+                              '120',
+                              '168'
+                            ]
+                                .map((v) => DropdownMenuItem(
+                                    value: v,
+                                    child: Text(int.parse(v) >= 72
+                                        ? '$v hours · ${int.parse(v) ~/ 24} days'
+                                        : '$v hours')))
+                                .toList(),
+                            onChanged: (v) =>
+                                setState(() => duration = v ?? '16')),
+                        const SizedBox(height: 14),
+                        FilledButton.icon(
+                            onPressed: _start,
+                            icon: const Icon(Icons.play_arrow),
+                            label: const Text('Start fasting timer'))
+                      ]
                     ]);
-                  }),
-                ])),
-          SectionCard(
-              child: FutureBuilder<Json>(
-                  future: _token,
-                  builder: (context, snapshot) {
-                    if (!snapshot.hasData) {
-                      return const LinearProgressIndicator();
-                    }
-                    final token = str(snapshot.data!['token'], '');
-                    final origin = Uri.parse(widget.api.dio.options.baseUrl)
-                        .replace(path: '')
-                        .toString();
-                    final link = '$origin/fasting/widget?token=$token';
-                    return Column(
+                    final biology = Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Shareable fasting widget',
-                              style: Theme.of(context).textTheme.titleLarge),
-                          const SizedBox(height: 6),
-                          const Text(
-                              'Anyone with this private link can view your current fasting timer.'),
-                          const SizedBox(height: 8),
-                          SelectableText(link),
-                          Wrap(spacing: 8, children: [
-                            OutlinedButton.icon(
-                                onPressed: () async {
-                                  await Clipboard.setData(
-                                      ClipboardData(text: link));
-                                  if (context.mounted) {
-                                    await snack(context, 'Widget link copied');
-                                  }
-                                },
-                                icon: const Icon(Icons.copy_outlined),
-                                label: const Text('Copy link')),
-                            TextButton(
-                                onPressed: () async {
-                                  if (!await confirmAction(
-                                      context,
-                                      'Regenerate widget link?',
-                                      'The current link will stop working.')) {
-                                    return;
-                                  }
-                                  try {
-                                    await widget.api.postDynamic(
-                                        '/fasting/widget-token/regenerate');
-                                    if (context.mounted) {
-                                      setState(() => _token = widget.api
-                                          .getMap('/fasting/widget-token'));
-                                    }
-                                  } catch (e) {
-                                    if (context.mounted) {
-                                      await showFormaError(context, e);
-                                    }
-                                  }
-                                },
-                                child: const Text('Regenerate')),
-                          ]),
+                          Text(
+                              active.isNotEmpty
+                                  ? 'CURRENT FASTING STAGE'
+                                  : 'YOUR FASTING PLAN',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelMedium
+                                  ?.copyWith(
+                                      color:
+                                          Theme.of(context).colorScheme.primary,
+                                      letterSpacing: 1.1,
+                                      fontWeight: FontWeight.w700)),
+                          const SizedBox(height: 7),
+                          Text(
+                              active.isNotEmpty
+                                  ? currentStage.$3
+                                  : 'Choose a schedule that works for you',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .headlineSmall
+                                  ?.copyWith(fontWeight: FontWeight.w700)),
+                          Text(
+                              active.isNotEmpty
+                                  ? currentStage.$4
+                                  : 'Start the timer when your fasting window begins.',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleSmall
+                                  ?.copyWith(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .primary)),
+                          if (active.isNotEmpty) ...[
+                            const SizedBox(height: 12),
+                            Text(currentStage.$5,
+                                style: Theme.of(context).textTheme.bodyMedium),
+                            const SizedBox(height: 14),
+                            Text('What to keep in mind',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleSmall
+                                    ?.copyWith(fontWeight: FontWeight.w700)),
+                            const SizedBox(height: 6),
+                            for (final item in currentStage.$6)
+                              Padding(
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 3),
+                                  child: Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Icon(Icons.circle,
+                                            size: 7,
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .primary),
+                                        const SizedBox(width: 9),
+                                        Expanded(
+                                            child: Text(item,
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .bodySmall))
+                                      ])),
+                            const SizedBox(height: 8),
+                            ClipRRect(
+                                borderRadius: BorderRadius.circular(99),
+                                child: LinearProgressIndicator(
+                                    value: stageProgress, minHeight: 6)),
+                            if (nextStage != null)
+                              Padding(
+                                  padding: const EdgeInsets.only(top: 8),
+                                  child: Text(
+                                      'Next stage in ${((nextStage.$1 - hours).clamp(0, 999)).toStringAsFixed(1)} hours',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .labelLarge)),
+                          ]
                         ]);
+                    return Container(
+                        padding: EdgeInsets.all(compact ? 20 : 26),
+                        decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(24),
+                            gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  colors.surfaceContainerLow,
+                                  colors.primaryContainer.withValues(alpha: .28)
+                                ]),
+                            border: Border.all(color: colors.outlineVariant)),
+                        child: compact
+                            ? Column(children: [
+                                timer,
+                                const SizedBox(height: 22),
+                                Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: biology)
+                              ])
+                            : Row(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                    SizedBox(width: 250, child: timer),
+                                    const SizedBox(width: 24),
+                                    Expanded(child: biology)
+                                  ]));
                   })),
-        ]);
+              const SizedBox(height: 14),
+              MetricGrid(children: [
+                MetricTile(
+                    label: 'Completed fasts',
+                    value: str(stats['completedFasts'], '0'),
+                    detail: 'Sessions completed',
+                    icon: Icons.check_circle_outline),
+                MetricTile(
+                    label: 'Hours fasted',
+                    value: str(stats['totalHoursFasted'], '0'),
+                    detail: 'Total recorded time',
+                    icon: Icons.schedule),
+                MetricTile(
+                    label: 'Longest fast',
+                    value: '${str(stats['longestFastHours'], '0')} h',
+                    detail: 'Personal best',
+                    icon: Icons.emoji_events_outlined)
+              ]),
+              const SizedBox(height: 14),
+              SectionCard(
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                    Row(children: [
+                      Container(
+                          padding: const EdgeInsets.all(9),
+                          decoration: BoxDecoration(
+                              color: colors.primaryContainer
+                                  .withValues(alpha: .55),
+                              borderRadius: BorderRadius.circular(13)),
+                          child: Icon(Icons.history_rounded,
+                              color: colors.primary, size: 20)),
+                      const SizedBox(width: 11),
+                      Expanded(
+                          child: Text('Your fasting history',
+                              style: Theme.of(context).textTheme.titleLarge)),
+                      if (sessions.isNotEmpty)
+                        Text('${sessions.length} sessions',
+                            style: Theme.of(context).textTheme.labelMedium)
+                    ]),
+                    const SizedBox(height: 12),
+                    if (sessions.isEmpty)
+                      emptyMessage(
+                          context,
+                          'Your completed fasts will appear here',
+                          'Start a fast to begin your history.'),
+                    for (final raw in sessions)
+                      Builder(builder: (context) {
+                        final s = asJson(raw);
+                        final delta = DateTime.tryParse(str(s['ended_at'], ''))
+                                ?.difference(DateTime.tryParse(
+                                        str(s['started_at'], '')) ??
+                                    DateTime.now())
+                                .inMinutes ??
+                            0;
+                        return Container(
+                            margin: const EdgeInsets.only(bottom: 9),
+                            padding: const EdgeInsets.fromLTRB(13, 12, 6, 12),
+                            decoration: BoxDecoration(
+                                color: colors.surfaceContainerLow,
+                                borderRadius: BorderRadius.circular(17),
+                                border:
+                                    Border.all(color: colors.outlineVariant)),
+                            child: Row(children: [
+                              Container(
+                                  width: 40,
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                      color: colors.primaryContainer
+                                          .withValues(alpha: .62),
+                                      borderRadius: BorderRadius.circular(13)),
+                                  child: Icon(Icons.bolt_rounded,
+                                      color: colors.primary)),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                  child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                    Text(str(s['fast_type'], 'Fasting session'),
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleSmall
+                                            ?.copyWith(
+                                                fontWeight: FontWeight.w700)),
+                                    const SizedBox(height: 3),
+                                    Text(
+                                        '${displayDate(s['started_at'])} – ${displayDate(s['ended_at'])}  ·  ${str(s['status'], 'completed')}',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall),
+                                  ])),
+                              const SizedBox(width: 8),
+                              Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 10, vertical: 7),
+                                  decoration: BoxDecoration(
+                                      color: colors.primaryContainer
+                                          .withValues(alpha: .55),
+                                      borderRadius: BorderRadius.circular(12)),
+                                  child: Text(
+                                      '${(delta / 60).toStringAsFixed(1)} h',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .labelLarge
+                                          ?.copyWith(
+                                              color: colors.primary,
+                                              fontWeight: FontWeight.w700))),
+                              IconButton(
+                                  tooltip: 'Delete record',
+                                  icon: const Icon(Icons.delete_outline),
+                                  onPressed: () async {
+                                    if (!await confirmAction(
+                                        context,
+                                        'Delete fasting record?',
+                                        'This removes this session from your history.')) {
+                                      return;
+                                    }
+                                    try {
+                                      await widget.api
+                                          .delete('/fasting/${s['id']}');
+                                      if (context.mounted) setState(_load);
+                                    } catch (e) {
+                                      if (context.mounted) {
+                                        await showFormaError(context, e);
+                                      }
+                                    }
+                                  }),
+                            ]));
+                      })
+                  ])),
+              const SizedBox(height: 14),
+              if (active.isNotEmpty)
+                SectionCard(
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                      Text('Fasting timeline',
+                          style: Theme.of(context).textTheme.titleLarge),
+                      const SizedBox(height: 4),
+                      Text(
+                          'Illustrative milestones only; individual responses vary.',
+                          style: Theme.of(context).textTheme.bodySmall),
+                      const SizedBox(height: 14),
+                      LayoutBuilder(builder: (context, box) {
+                        final columns = box.maxWidth >= 1000
+                            ? 4
+                            : box.maxWidth >= 600
+                                ? 2
+                                : 1;
+                        final width =
+                            (box.maxWidth - (columns - 1) * 10) / columns;
+                        return Wrap(spacing: 10, runSpacing: 10, children: [
+                          for (var i = 0; i < stages.length; i++)
+                            SizedBox(
+                                width: width,
+                                child: Container(
+                                    padding: const EdgeInsets.all(14),
+                                    decoration: BoxDecoration(
+                                        color: i == stageIndex
+                                            ? Theme.of(context)
+                                                .colorScheme
+                                                .primaryContainer
+                                                .withValues(alpha: .45)
+                                            : Theme.of(context)
+                                                .colorScheme
+                                                .surfaceContainerLow,
+                                        border: Border.all(
+                                            color: i == stageIndex
+                                                ? Theme.of(context)
+                                                    .colorScheme
+                                                    .primary
+                                                : Theme.of(context)
+                                                    .colorScheme
+                                                    .outlineVariant),
+                                        borderRadius:
+                                            BorderRadius.circular(16)),
+                                    child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                              '${stages[i].$1.toInt()}–${stages[i].$2.toInt()} h',
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .labelMedium
+                                                  ?.copyWith(
+                                                      fontWeight:
+                                                          FontWeight.w700)),
+                                          const SizedBox(height: 6),
+                                          Text(stages[i].$3,
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .titleSmall
+                                                  ?.copyWith(
+                                                      fontWeight:
+                                                          FontWeight.w700)),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                              i < stageIndex
+                                                  ? 'Elapsed'
+                                                  : i == stageIndex
+                                                      ? 'Current'
+                                                      : 'Upcoming',
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .labelSmall
+                                                  ?.copyWith(
+                                                      color: i == stageIndex
+                                                          ? Theme.of(context)
+                                                              .colorScheme
+                                                              .primary
+                                                          : null))
+                                        ]))),
+                        ]);
+                      }),
+                    ])),
+              SectionCard(
+                  child: FutureBuilder<Json>(
+                      future: _token,
+                      builder: (context, snapshot) {
+                        if (!snapshot.hasData) {
+                          return const LinearProgressIndicator();
+                        }
+                        final token = str(snapshot.data!['token'], '');
+                        final origin = Uri.parse(widget.api.dio.options.baseUrl)
+                            .replace(path: '')
+                            .toString();
+                        final link = '$origin/fasting/widget?token=$token';
+                        return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(children: [
+                                Container(
+                                    padding: const EdgeInsets.all(9),
+                                    decoration: BoxDecoration(
+                                        color: colors.primaryContainer
+                                            .withValues(alpha: .55),
+                                        borderRadius:
+                                            BorderRadius.circular(13)),
+                                    child: Icon(Icons.ios_share_rounded,
+                                        color: colors.primary, size: 20)),
+                                const SizedBox(width: 11),
+                                Expanded(
+                                    child: Text('Share your fasting timer',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleLarge)),
+                              ]),
+                              const SizedBox(height: 8),
+                              Text(
+                                  'Anyone with this private link can view your current fasting timer.',
+                                  style:
+                                      Theme.of(context).textTheme.bodyMedium),
+                              const SizedBox(height: 12),
+                              Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                      color: colors.surfaceContainerLow,
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(
+                                          color: colors.outlineVariant)),
+                                  child: SelectableText(link,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall)),
+                              const SizedBox(height: 8),
+                              Wrap(spacing: 8, children: [
+                                OutlinedButton.icon(
+                                    onPressed: () async {
+                                      await Clipboard.setData(
+                                          ClipboardData(text: link));
+                                      if (context.mounted) {
+                                        await snack(
+                                            context, 'Widget link copied');
+                                      }
+                                    },
+                                    icon: const Icon(Icons.copy_outlined),
+                                    label: const Text('Copy link')),
+                                TextButton(
+                                    onPressed: () async {
+                                      if (!await confirmAction(
+                                          context,
+                                          'Regenerate widget link?',
+                                          'The current link will stop working.')) {
+                                        return;
+                                      }
+                                      try {
+                                        await widget.api.postDynamic(
+                                            '/fasting/widget-token/regenerate');
+                                        if (context.mounted) {
+                                          setState(() => _token = widget.api
+                                              .getMap('/fasting/widget-token'));
+                                        }
+                                      } catch (e) {
+                                        if (context.mounted) {
+                                          await showFormaError(context, e);
+                                        }
+                                      }
+                                    },
+                                    child: const Text('Regenerate')),
+                              ]),
+                            ]);
+                      })),
+            ]);
       });
   String _duration(double h) =>
       '${h.floor().toString().padLeft(2, '0')}:${((h * 60).floor() % 60).toString().padLeft(2, '0')}:${((h * 3600).floor() % 60).toString().padLeft(2, '0')}';
+}
+
+class _WavyDialPainter extends CustomPainter {
+  const _WavyDialPainter({
+    required this.progress,
+    required this.trackColor,
+    required this.progressColor,
+  });
+
+  final double progress;
+  final Color trackColor;
+  final Color progressColor;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const steps = 240;
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = math.min(size.width, size.height) * .405;
+
+    Path pathFor(double fraction) {
+      final count = (steps * fraction).ceil().clamp(1, steps);
+      final path = Path();
+      for (var i = 0; i <= count; i++) {
+        final angle = -math.pi / 2 + (2 * math.pi * fraction * i / count);
+        final wave = math.sin(6 * angle + .35);
+        final r = radius + radius * .055 * wave;
+        final point = Offset(
+            center.dx + r * math.cos(angle), center.dy + r * math.sin(angle));
+        if (i == 0) {
+          path.moveTo(point.dx, point.dy);
+        } else {
+          path.lineTo(point.dx, point.dy);
+        }
+      }
+      return path;
+    }
+
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 7
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    paint.color = trackColor;
+    canvas.drawPath(pathFor(1), paint);
+    if (progress > 0) {
+      paint.color = progressColor;
+      canvas.drawPath(pathFor(progress.clamp(0.0, 1.0)), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _WavyDialPainter oldDelegate) =>
+      oldDelegate.progress != progress ||
+      oldDelegate.trackColor != trackColor ||
+      oldDelegate.progressColor != progressColor;
 }
