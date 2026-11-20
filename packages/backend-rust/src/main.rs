@@ -2403,9 +2403,15 @@ async fn public_fasting_widget(
     let username = q.get("username");
     let conn = db(&app);
     let profile = if let Some(token) = token {
-        conn.query_row("SELECT p.id,p.username,p.display_name FROM settings s JOIN profiles p ON p.id=s.profile_id WHERE s.key='fasting_widget_token' AND s.value=?1",[token],|r|Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,Option<String>>(2)?))).optional().ok().flatten()
+        match conn.query_row("SELECT p.id,p.username,p.display_name FROM settings s JOIN profiles p ON p.id=s.profile_id WHERE s.key='fasting_widget_token' AND s.value=?1",[token],|r|Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,Option<String>>(2)?))).optional() {
+            Ok(profile) => profile,
+            Err(_) => return error(StatusCode::INTERNAL_SERVER_ERROR, "Internal server error"),
+        }
     } else if let Some(username) = username {
-        conn.query_row("SELECT id,username,display_name FROM profiles WHERE LOWER(username)=LOWER(?1) AND is_public=1",[username.trim_start_matches('@').trim()],|r|Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,Option<String>>(2)?))).optional().ok().flatten()
+        match conn.query_row("SELECT id,username,display_name FROM profiles WHERE LOWER(username)=LOWER(?1) AND is_public=1",[username.trim_start_matches('@').trim()],|r|Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,Option<String>>(2)?))).optional() {
+            Ok(profile) => profile,
+            Err(_) => return error(StatusCode::INTERNAL_SERVER_ERROR, "Internal server error"),
+        }
     } else {
         None
     };
@@ -2501,34 +2507,41 @@ async fn fasting_token(
     let Ok(p) = auth_or_response(&app, &session) else {
         return error(StatusCode::UNAUTHORIZED, "Unauthorized");
     };
-    let conn = db(&app);
-    let old = conn
-        .query_row(
-            "SELECT id,value FROM settings WHERE profile_id=?1 AND key='fasting_widget_token'",
-            [&p.id],
-            |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)),
-        )
-        .optional()
-        .ok()
-        .flatten();
-    if let Some((id, value)) = old {
-        if !regenerate {
-            return Json(json!({"token":value})).into_response();
-        }
-        let token = format!("fwt_{}", new_id());
-        let _ = conn.execute(
-            "UPDATE settings SET value=?1 WHERE id=?2",
-            params![token, id],
-        );
-        Json(json!({"token":token})).into_response()
-    } else {
-        let token = format!("fwt_{}", new_id());
-        let _ = conn.execute(
-            "INSERT INTO settings(id,profile_id,key,value) VALUES(?1,?2,'fasting_widget_token',?3)",
+    let mut conn = db(&app);
+    let tx = match conn.transaction() {
+        Ok(tx) => tx,
+        Err(_) => return error(StatusCode::INTERNAL_SERVER_ERROR, "Internal server error"),
+    };
+    let new_token = || format!("fwt_{}", new_id());
+    let token = if regenerate {
+        let token = new_token();
+        if tx.execute(
+            "INSERT INTO settings(id,profile_id,key,value) VALUES(?1,?2,'fasting_widget_token',?3) ON CONFLICT(profile_id,key) DO UPDATE SET value=excluded.value",
             params![new_id(), p.id, token],
-        );
-        Json(json!({"token":token})).into_response()
+        ).is_err() {
+            return error(StatusCode::INTERNAL_SERVER_ERROR, "Internal server error");
+        }
+        token
+    } else {
+        if tx.execute(
+            "INSERT INTO settings(id,profile_id,key,value) VALUES(?1,?2,'fasting_widget_token',?3) ON CONFLICT(profile_id,key) DO NOTHING",
+            params![new_id(), p.id, new_token()],
+        ).is_err() {
+            return error(StatusCode::INTERNAL_SERVER_ERROR, "Internal server error");
+        }
+        match tx.query_row(
+            "SELECT value FROM settings WHERE profile_id=?1 AND key='fasting_widget_token'",
+            [&p.id],
+            |row| row.get::<_, String>(0),
+        ) {
+            Ok(token) => token,
+            Err(_) => return error(StatusCode::INTERNAL_SERVER_ERROR, "Internal server error"),
+        }
+    };
+    if tx.commit().is_err() {
+        return error(StatusCode::INTERNAL_SERVER_ERROR, "Internal server error");
     }
+    Json(json!({"token":token})).into_response()
 }
 async fn fasting_token_get(
     State(app): State<App>,
@@ -4298,6 +4311,16 @@ async fn ai_chat_edit(
         .into_response()
 }
 
+fn fasting_widget_routes() -> Router<App> {
+    Router::new()
+        .route("/api/public/fasting/widget", get(public_fasting_widget))
+        .route("/api/fasting/widget-token", get(fasting_token_get))
+        .route(
+            "/api/fasting/widget-token/regenerate",
+            post(fasting_token_regenerate),
+        )
+}
+
 #[tokio::main]
 async fn main() {
     let production = env::var("NODE_ENV").unwrap_or_default() == "production";
@@ -4406,12 +4429,7 @@ async fn main() {
         .route("/api/fasting/start", post(fasting_start))
         .route("/api/fasting/end", post(fasting_end))
         .route("/api/fasting/history", get(fasting_history))
-        .route("/api/public/fasting/widget", get(public_fasting_widget))
-        .route("/api/fasting/widget-token", get(fasting_token_get))
-        .route(
-            "/api/fasting/widget-token/regenerate",
-            post(fasting_token_regenerate),
-        )
+        .merge(fasting_widget_routes())
         .route("/api/fasting/{id}", delete(fasting_delete))
         .route(
             "/api/nutrition/plan",
@@ -4473,4 +4491,213 @@ async fn main() {
         .expect("bind server");
     eprintln!("Forma Rust API listening on {port}; database={path}; schema unchanged");
     axum::serve(listener, router).await.expect("serve API");
+}
+
+#[cfg(test)]
+mod fasting_widget_tests {
+    use super::*;
+    use axum::{body::to_bytes, http::Request};
+    use tower::ServiceExt;
+
+    const SESSION_ID: &str = "fixture-session-id";
+    const PROFILE_ID: &str = "fixture-profile-id";
+
+    fn test_app() -> (Router, Db) {
+        let conn = Connection::open_in_memory().expect("open disposable in-memory database");
+        conn.execute_batch(
+            "
+            PRAGMA foreign_keys = ON;
+            CREATE TABLE profiles (
+                id TEXT PRIMARY KEY,
+                username TEXT NOT NULL,
+                display_name TEXT,
+                avatar_url TEXT,
+                bio TEXT,
+                is_public INTEGER NOT NULL DEFAULT 0,
+                role TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE TABLE sessions (
+                id TEXT PRIMARY KEY,
+                profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+                expires_at TEXT NOT NULL
+            );
+            CREATE TABLE settings (
+                id TEXT PRIMARY KEY,
+                profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+                key TEXT NOT NULL,
+                value TEXT NOT NULL,
+                UNIQUE(profile_id, key)
+            );
+            CREATE TABLE fasting_sessions (
+                id TEXT PRIMARY KEY,
+                profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+                fast_type TEXT NOT NULL DEFAULT '16:8',
+                target_duration_hours REAL NOT NULL DEFAULT 16,
+                started_at TEXT NOT NULL,
+                ended_at TEXT,
+                status TEXT NOT NULL DEFAULT 'active',
+                notes TEXT,
+                mood TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            INSERT INTO profiles(id, username, display_name)
+                VALUES ('fixture-profile-id', 'widget_fixture', 'Widget Fixture');
+            INSERT INTO sessions(id, profile_id, expires_at)
+                VALUES ('fixture-session-id', 'fixture-profile-id', '2099-01-01 00:00:00');
+            ",
+        )
+        .expect("create disposable widget test schema");
+
+        let db = Arc::new(Mutex::new(conn));
+        let app = App {
+            db: db.clone(),
+            production: false,
+        };
+        let router = fasting_widget_routes()
+            .layer(middleware::from_fn(authenticate))
+            .with_state(app);
+        (router, db)
+    }
+
+    async fn request(
+        app: Router,
+        method: Method,
+        uri: &str,
+        authenticated: bool,
+    ) -> (StatusCode, Value) {
+        let mut builder = Request::builder().method(method).uri(uri);
+        if authenticated {
+            builder = builder.header(header::COOKIE, format!("session_id={SESSION_ID}"));
+        }
+        let response = app
+            .oneshot(builder.body(Body::empty()).expect("build fixture request"))
+            .await
+            .expect("route fixture request");
+        let status = response.status();
+        let body = to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("read fixture response body");
+        let value = serde_json::from_slice(&body).expect("response should be JSON");
+        (status, value)
+    }
+
+    #[tokio::test]
+    async fn retrieval_is_stable_and_public_lookup_accepts_token_without_session() {
+        let (app, db) = test_app();
+
+        let (status, first) =
+            request(app.clone(), Method::GET, "/api/fasting/widget-token", true).await;
+        assert_eq!(status, StatusCode::OK);
+        let token = first["token"].as_str().expect("token response field");
+        assert!(token.starts_with("fwt_"));
+        let first_token = token.to_owned();
+
+        let (status, second) =
+            request(app.clone(), Method::GET, "/api/fasting/widget-token", true).await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(second["token"].as_str() == Some(first_token.as_str()));
+
+        let persisted = db
+            .lock()
+            .expect("fixture database lock")
+            .query_row(
+                "SELECT value FROM settings WHERE profile_id=?1 AND key='fasting_widget_token'",
+                [PROFILE_ID],
+                |row| row.get::<_, String>(0),
+            )
+            .expect("token must be persisted");
+        assert!(persisted == first_token);
+
+        let (status, public) = request(
+            app,
+            Method::GET,
+            &format!("/api/public/fasting/widget?token={first_token}"),
+            false,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(public["active"], false);
+        assert_eq!(public["profile"]["username"], "widget_fixture");
+    }
+
+    #[tokio::test]
+    async fn regeneration_persists_new_token_and_invalidates_old_token_immediately() {
+        let (app, db) = test_app();
+        let (_, first) = request(app.clone(), Method::GET, "/api/fasting/widget-token", true).await;
+        let old_token = first["token"].as_str().expect("first token").to_owned();
+
+        let (status, regenerated) = request(
+            app.clone(),
+            Method::POST,
+            "/api/fasting/widget-token/regenerate",
+            true,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        let new_token = regenerated["token"]
+            .as_str()
+            .expect("regenerated token")
+            .to_owned();
+        assert!(new_token.starts_with("fwt_"));
+        assert!(new_token != old_token);
+
+        let persisted = db
+            .lock()
+            .expect("fixture database lock")
+            .query_row(
+                "SELECT value FROM settings WHERE profile_id=?1 AND key='fasting_widget_token'",
+                [PROFILE_ID],
+                |row| row.get::<_, String>(0),
+            )
+            .expect("regenerated token must be persisted");
+        assert!(persisted == new_token);
+
+        let (old_status, _) = request(
+            app.clone(),
+            Method::GET,
+            &format!("/api/public/fasting/widget?token={old_token}"),
+            false,
+        )
+        .await;
+        assert_eq!(old_status, StatusCode::NOT_FOUND);
+
+        let (new_status, public) = request(
+            app,
+            Method::GET,
+            &format!("/api/public/fasting/widget?token={new_token}"),
+            false,
+        )
+        .await;
+        assert_eq!(new_status, StatusCode::OK);
+        assert_eq!(public["active"], false);
+    }
+
+    #[tokio::test]
+    async fn unknown_tokens_are_not_found_and_token_management_requires_authentication() {
+        let (app, _) = test_app();
+
+        let (unknown_status, _) = request(
+            app.clone(),
+            Method::GET,
+            "/api/public/fasting/widget?token=fwt_unknown_fixture_token",
+            false,
+        )
+        .await;
+        assert_eq!(unknown_status, StatusCode::NOT_FOUND);
+
+        let (get_status, _) =
+            request(app.clone(), Method::GET, "/api/fasting/widget-token", false).await;
+        assert_eq!(get_status, StatusCode::UNAUTHORIZED);
+
+        let (regenerate_status, _) = request(
+            app,
+            Method::POST,
+            "/api/fasting/widget-token/regenerate",
+            false,
+        )
+        .await;
+        assert_eq!(regenerate_status, StatusCode::UNAUTHORIZED);
+    }
 }
