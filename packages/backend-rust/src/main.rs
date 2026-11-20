@@ -234,6 +234,10 @@ async fn auth_status(
                 .map(|v| v != "false" && v != "0")
                 .unwrap_or(true)
         });
+    // Release the SQLite mutex before checking the session. current_profile()
+    // acquires the same mutex, so retaining this guard here deadlocks every
+    // subsequent request after the first auth-status check.
+    drop(conn);
     let session = session.map(|s| s.0).unwrap_or(None);
     let authenticated = current_profile(&app, &session).is_some();
     Json(
