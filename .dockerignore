@@ -1,5 +1,8 @@
 .git
 node_modules
+target/
+packages/backend-rust/target
+packages/backend-rust/data
 packages/backend/node_modules
 packages/backend/dist
 packages/backend/data

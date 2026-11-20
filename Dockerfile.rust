@@ -1,0 +1,41 @@
+# Optional Rust backend image for staged compatibility verification.
+# The normal Dockerfile and production compose service remain on TypeScript.
+FROM rust:1-bookworm AS rust-builder
+WORKDIR /build
+COPY packages/backend-rust/Cargo.toml packages/backend-rust/Cargo.lock ./packages/backend-rust/
+COPY packages/backend-rust/src ./packages/backend-rust/src
+RUN cargo build --release --locked --manifest-path packages/backend-rust/Cargo.toml
+
+FROM --platform=$BUILDPLATFORM node:24-bookworm-slim AS flutter-web-builder
+ARG FLUTTER_VERSION=3.47.9
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ca-certificates curl git unzip xz-utils zip libglu1-mesa \
+    && rm -rf /var/lib/apt/lists/*
+RUN curl -fsSL "https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz" \
+    | tar -xJ -C /opt
+ENV PATH="/opt/flutter/bin:${PATH}"
+RUN git config --global --add safe.directory /opt/flutter
+WORKDIR /build/packages/flutter_app
+COPY packages/flutter_app/pubspec.yaml packages/flutter_app/pubspec.lock ./
+RUN flutter pub get
+COPY packages/flutter_app ./
+RUN flutter build web --release
+
+FROM debian:bookworm-slim AS runtime
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates libgcc-s1 wget \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /app/data/photos \
+    && chown -R 100:100 /app/data
+WORKDIR /app
+COPY --from=rust-builder /build/packages/backend-rust/target/release/forma-backend /usr/local/bin/forma-backend
+COPY --from=flutter-web-builder /build/packages/flutter_app/build/web ./packages/flutter_app/build/web
+USER 100:100
+VOLUME ["/app/data"]
+EXPOSE 3001
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:3001/api/health || exit 1
+ENV NODE_ENV=production \
+    PORT=3001 \
+    DATABASE_PATH=/app/data/body-tracker.db \
+    PHOTOS_PATH=/app/data/photos
+CMD ["/usr/local/bin/forma-backend"]

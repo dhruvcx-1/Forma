@@ -13,6 +13,27 @@ env:
   IMAGE_NAME: ${{ github.repository_owner }}/forma
 
 jobs:
+  verify-rust-backend:
+    name: Verify staged Rust backend
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Check Rust formatting
+        run: cargo fmt --manifest-path packages/backend-rust/Cargo.toml -- --check
+
+      - name: Compile Rust backend
+        run: cargo check --locked --manifest-path packages/backend-rust/Cargo.toml
+
   build-android:
     name: Build Android APK
     # Build the APK only for version-tag releases, in parallel with the Docker image.
@@ -198,6 +219,7 @@ jobs:
   build-and-push:
     # Docker and Android artifacts are built only for version-tag releases.
     if: github.event_name != 'pull_request'
+    needs: verify-rust-backend
     runs-on: ubuntu-latest
     permissions:
       contents: read

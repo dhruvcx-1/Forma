@@ -1,0 +1,44 @@
+services:
+  forma-beta-db-init:
+    image: ghcr.io/dhruvcx-1/forma-beta-migrator:latest
+    container_name: forma-beta-db-init
+    restart: "no"
+    environment:
+      NODE_ENV: development
+      DATABASE_PATH: /app/data/body-tracker.db
+    volumes:
+      - forma_beta_data:/app/data
+
+  forma-beta:
+    image: ghcr.io/dhruvcx-1/forma-beta:latest
+    container_name: forma-beta
+    restart: unless-stopped
+    depends_on:
+      forma-beta-db-init:
+        condition: service_completed_successfully
+    environment:
+      NODE_ENV: production
+      PORT: "3001"
+      EXTERNAL_PORT: "3002"
+      COOKIE_SECRET: ${FORMA_BETA_COOKIE_SECRET:?Set FORMA_BETA_COOKIE_SECRET in your .env file}
+      ALLOW_REGISTRATION: ${FORMA_BETA_ALLOW_REGISTRATION:-true}
+      DATABASE_PATH: /app/data/body-tracker.db
+      PHOTOS_PATH: /app/data/photos
+      FORMA_AI_ENCRYPTION_KEY: ${FORMA_BETA_AI_ENCRYPTION_KEY:-}
+      FORMA_AI_ALLOW_HTTP_BASE_URL: ${FORMA_BETA_AI_ALLOW_HTTP_BASE_URL:-false}
+    ports:
+      - "${FORMA_BETA_PORT:-3002}:3001"
+    volumes:
+      - forma_beta_data:/app/data
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3001/api/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 15s
+      retries: 3
+
+volumes:
+  forma_beta_data:
+    name: forma_beta_data

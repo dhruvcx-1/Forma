@@ -9,7 +9,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "test": "tsx --test --test-concurrency=1 \"src/**/*.test.ts\"",
-    "db:migrate": "tsx src/db/migrations.ts",
+    "db:migrate": "tsx -e \"import('./src/db/index.ts')\"",
     "db:seed": "tsx src/scripts/seed-demo.ts"
   },
   "dependencies": {
