@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:file_saver/file_saver.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -50,8 +51,32 @@ class _PhotosScreenState extends State<PhotosScreen> {
                     onTap: () => Navigator.pop(context, item.$1)),
             ])));
     if (view == null) return;
-    final image = await ImagePicker().pickImage(
-        source: ImageSource.gallery, imageQuality: 88, maxWidth: 2400);
+    if (!mounted) return;
+    final cameraAvailable = kIsWeb ||
+        defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
+    final source = await showModalBottomSheet<ImageSource>(
+        context: context,
+        showDragHandle: true,
+        builder: (context) => SafeArea(
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+              if (cameraAvailable)
+                ListTile(
+                  leading: const Icon(Icons.photo_camera_outlined),
+                  title: const Text('Take a photo'),
+                  subtitle: const Text('Use your device camera'),
+                  onTap: () => Navigator.pop(context, ImageSource.camera),
+                ),
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined),
+                title: const Text('Upload a photo'),
+                subtitle: const Text('Choose an existing image'),
+                onTap: () => Navigator.pop(context, ImageSource.gallery),
+              ),
+            ])));
+    if (source == null) return;
+    final image = await ImagePicker()
+        .pickImage(source: source, imageQuality: 88, maxWidth: 2400);
     if (image == null) return;
     try {
       final bytes = await image.readAsBytes();
@@ -115,84 +140,97 @@ class _PhotosScreenState extends State<PhotosScreen> {
         future: _photos,
         onRetry: () => setState(_load),
         builder: (context, photos) =>
-            ListView(padding: const EdgeInsets.all(22), children: [
-          PageHeading('Progress photos',
-              subtitle:
-                  'Private to your account. Compare your progress over time.',
-              trailing: Wrap(spacing: 6, children: [
-                if (selectedIds.length == 2)
-                  OutlinedButton.icon(
-                      onPressed: _compare,
-                      icon: const Icon(Icons.compare_arrows),
-                      label: const Text('Compare')),
-                FilledButton.icon(
-                    onPressed: _chooseUpload,
-                    icon: const Icon(Icons.add_a_photo_outlined),
-                    label: const Text('Add photo')),
-              ])),
-          if (photos.isEmpty)
-            SectionCard(
-                child: emptyMessage(context, 'Your private progress timeline',
-                    'Add front, side or back photos to create a visual record.')),
-          if (photos.isNotEmpty)
-            LayoutBuilder(
-                builder: (context, b) => GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: b.maxWidth > 800
-                              ? 4
-                              : b.maxWidth > 520
-                                  ? 3
-                                  : 2,
-                          crossAxisSpacing: 12,
-                          mainAxisSpacing: 12,
-                          childAspectRatio: .76),
-                      itemCount: photos.length,
-                      itemBuilder: (context, i) {
-                        final p = asJson(photos[i]);
-                        return _PhotoCard(
-                            api: widget.api,
-                            photo: p,
-                            selected: selectedIds.contains(str(p['id'])),
-                            onToggle: () => setState(() {
-                                  final id = str(p['id']);
-                                  if (selectedIds.contains(id)) {
-                                    selectedIds.remove(id);
-                                  } else if (selectedIds.length < 2) {
-                                    selectedIds.add(id);
-                                  }
-                                }),
-                            onDelete: () async {
-                              if (!await confirmAction(
-                                  context,
-                                  'Delete progress photo?',
-                                  'The photo file and its record will be removed.')) {
-                                return;
-                              }
-                              try {
-                                await widget.api.delete('/photos/${p['id']}');
-                                if (context.mounted) setState(_load);
-                              } catch (e) {
-                                if (context.mounted) {
-                                  await showFormaError(context, e);
-                                }
-                              }
-                            });
-                      },
-                    )),
-          if (photos.length >= 2) ...[
-            const SizedBox(height: 14),
-            const SectionCard(
-                child: Row(children: [
-              Icon(Icons.compare_arrows),
-              SizedBox(width: 10),
-              Expanded(
-                  child: Text(
-                      'Open a photo to view it full size. Use matching views and similar dates when comparing your progress.'))
-            ]))
-          ],
-        ]),
+            LayoutBuilder(builder: (context, viewport) {
+          final horizontal = viewport.maxWidth < 600
+              ? 16.0
+              : viewport.maxWidth > 1280
+                  ? (viewport.maxWidth - 1280) / 2
+                  : 24.0;
+          return ListView(
+              padding: EdgeInsets.fromLTRB(horizontal, 22, horizontal, 28),
+              children: [
+                PageHeading('Progress photos',
+                    subtitle:
+                        'Private to your account. Compare your progress over time.',
+                    trailing: Wrap(spacing: 6, children: [
+                      if (selectedIds.length == 2)
+                        OutlinedButton.icon(
+                            onPressed: _compare,
+                            icon: const Icon(Icons.compare_arrows),
+                            label: const Text('Compare')),
+                      FilledButton.icon(
+                          onPressed: _chooseUpload,
+                          icon: const Icon(Icons.add_a_photo_outlined),
+                          label: const Text('Add photo')),
+                    ])),
+                if (photos.isEmpty)
+                  SectionCard(
+                      child: emptyMessage(
+                          context,
+                          'Your private progress timeline',
+                          'Add front, side or back photos to create a visual record.')),
+                if (photos.isNotEmpty)
+                  LayoutBuilder(
+                      builder: (context, b) => GridView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            gridDelegate:
+                                SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: b.maxWidth > 800
+                                        ? 4
+                                        : b.maxWidth > 520
+                                            ? 3
+                                            : 2,
+                                    crossAxisSpacing: 12,
+                                    mainAxisSpacing: 12,
+                                    childAspectRatio: .76),
+                            itemCount: photos.length,
+                            itemBuilder: (context, i) {
+                              final p = asJson(photos[i]);
+                              return _PhotoCard(
+                                  api: widget.api,
+                                  photo: p,
+                                  selected: selectedIds.contains(str(p['id'])),
+                                  onToggle: () => setState(() {
+                                        final id = str(p['id']);
+                                        if (selectedIds.contains(id)) {
+                                          selectedIds.remove(id);
+                                        } else if (selectedIds.length < 2) {
+                                          selectedIds.add(id);
+                                        }
+                                      }),
+                                  onDelete: () async {
+                                    if (!await confirmAction(
+                                        context,
+                                        'Delete progress photo?',
+                                        'The photo file and its record will be removed.')) {
+                                      return;
+                                    }
+                                    try {
+                                      await widget.api
+                                          .delete('/photos/${p['id']}');
+                                      if (context.mounted) setState(_load);
+                                    } catch (e) {
+                                      if (context.mounted) {
+                                        await showFormaError(context, e);
+                                      }
+                                    }
+                                  });
+                            },
+                          )),
+                if (photos.length >= 2) ...[
+                  const SizedBox(height: 14),
+                  const SectionCard(
+                      child: Row(children: [
+                    Icon(Icons.compare_arrows),
+                    SizedBox(width: 10),
+                    Expanded(
+                        child: Text(
+                            'Open a photo to view it full size. Use matching views and similar dates when comparing your progress.'))
+                  ]))
+                ],
+              ]);
+        }),
       );
 }
 
@@ -303,6 +341,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
   TextEditingController _c(String key, dynamic value) =>
       c.putIfAbsent(key, () => TextEditingController(text: str(value, '')));
 
+  InputDecoration _settingsField(BuildContext context, String label) {
+    final colors = Theme.of(context).colorScheme;
+    final outline = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(14),
+      borderSide: BorderSide(color: colors.outlineVariant),
+    );
+    return InputDecoration(
+      labelText: label,
+      filled: true,
+      fillColor: colors.surfaceContainerLow,
+      border: outline,
+      enabledBorder: outline,
+      focusedBorder: outline.copyWith(
+        borderSide: BorderSide(color: colors.primary, width: 1.6),
+      ),
+    );
+  }
+
   Future<void> _saveProfile() async {
     try {
       await widget.api.put('/profile', {
@@ -367,269 +423,336 @@ class _SettingsScreenState extends State<SettingsScreen> {
           final s = data.$2;
           final definitions = data.$3;
           final theme = context.watch<ThemeState>();
-          return ListView(padding: const EdgeInsets.all(22), children: [
-            const PageHeading('Settings',
-                subtitle: 'Your profile, units, theme and privacy.'),
-            SectionCard(
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                  Text('Profile',
-                      style: Theme.of(context).textTheme.titleLarge),
-                  const SizedBox(height: 10),
-                  Wrap(
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      spacing: 12,
-                      runSpacing: 8,
-                      children: [
-                        CircleAvatar(
-                            radius: 28,
-                            backgroundImage: p['avatar_url'] == null
-                                ? null
-                                : NetworkImage(
-                                    Uri.parse(widget.api.dio.options.baseUrl)
-                                        .replace(path: str(p['avatar_url']))
-                                        .toString()),
-                            child: p['avatar_url'] == null
-                                ? const Icon(Icons.person_outline)
-                                : null),
-                        OutlinedButton.icon(
-                            onPressed: _uploadAvatar,
-                            icon: const Icon(Icons.photo_camera_outlined),
-                            label: const Text('Change avatar')),
-                        if (p['avatar_url'] != null)
-                          IconButton(
-                              tooltip: 'Remove avatar',
-                              onPressed: _removeAvatar,
-                              icon: const Icon(Icons.delete_outline)),
-                      ]),
-                  const SizedBox(height: 10),
-                  Text('Username · ${str(p['username'])}'),
-                  const SizedBox(height: 8),
-                  TextField(
-                      controller: _c('display_name', p['display_name']),
-                      decoration:
-                          const InputDecoration(labelText: 'Display name')),
-                  const SizedBox(height: 10),
-                  TextField(
-                      controller: _c('bio', p['bio']),
-                      maxLines: 3,
-                      decoration: const InputDecoration(labelText: 'Bio')),
-                  SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Public progress profile'),
-                      subtitle: const Text(
-                          'Let people view the public information you share.'),
-                      value: isPublic,
-                      onChanged: (v) => setState(() => isPublic = v)),
-                  FilledButton(
-                      onPressed: _saveProfile,
-                      child: const Text('Save profile')),
-                  if (p['username'] != null && isPublic) ...[
-                    const SizedBox(height: 8),
-                    OutlinedButton.icon(
-                        onPressed: () => _copyPublicProfileLink(
-                            context, widget.api, str(p['username'])),
-                        icon: const Icon(Icons.link),
-                        label: const Text('Copy public profile link')),
-                  ],
-                ])),
-            const SizedBox(height: 14),
-            SectionCard(
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                  Text('Custom measurement sites',
-                      style: Theme.of(context).textTheme.titleLarge),
-                  const SizedBox(height: 6),
-                  const Text(
-                      'Manage the custom locations you added from Measurements.'),
-                  if (definitions.where((raw) {
-                    final d = asJson(raw);
-                    return d['is_system'] != 1 && d['is_system'] != true;
-                  }).isEmpty)
-                    const Padding(
-                        padding: EdgeInsets.only(top: 10),
-                        child: Text(
-                            'No custom sites yet. Add one from Measurements.')),
-                  for (final raw in definitions.where((raw) {
-                    final d = asJson(raw);
-                    return d['is_system'] != 1 && d['is_system'] != true;
-                  }))
-                    Builder(builder: (context) {
-                      final d = asJson(raw);
-                      return ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: Text(str(d['name'])),
-                          subtitle: Text('Base unit: ${str(d['unit'])}'),
-                          trailing: IconButton(
-                              tooltip: 'Delete custom site',
-                              icon: const Icon(Icons.delete_outline),
-                              onPressed: () async {
-                                if (await confirmAction(
-                                    context,
-                                    'Delete ${str(d['name'])}?',
-                                    'Historical entries for this site will also be deleted.')) {
-                                  try {
-                                    await widget.api.delete(
-                                        '/measurements/definitions/${d['id']}');
-                                    if (mounted) setState(_load);
-                                  } catch (e) {
-                                    if (context.mounted) {
-                                      await showFormaError(context, e);
-                                    }
-                                  }
-                                }
-                              }));
-                    }),
-                ])),
-            const SizedBox(height: 14),
-            SectionCard(
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                  Text('Health preferences',
-                      style: Theme.of(context).textTheme.titleLarge),
-                  const SizedBox(height: 10),
-                  TextField(
-                      controller: _c('height_cm', s['height_cm']),
-                      keyboardType: TextInputType.number,
-                      decoration:
-                          const InputDecoration(labelText: 'Height in cm')),
-                  const SizedBox(height: 10),
-                  TextField(
-                      controller: _c('date_of_birth', s['date_of_birth']),
-                      decoration: const InputDecoration(
-                          labelText: 'Date of birth (YYYY-MM-DD)')),
-                  const SizedBox(height: 10),
-                  DropdownButtonFormField<String>(
-                      initialValue: units,
-                      decoration: const InputDecoration(labelText: 'Units'),
-                      items: const [
-                        DropdownMenuItem(
-                            value: 'metric', child: Text('Metric (kg, cm)')),
-                        DropdownMenuItem(
-                            value: 'imperial', child: Text('Imperial (lb, in)'))
-                      ],
-                      onChanged: (v) => setState(() => units = v ?? 'metric')),
-                  const SizedBox(height: 10),
-                  DropdownButtonFormField<String>(
-                      initialValue: sex,
-                      decoration: const InputDecoration(
-                          labelText: 'Sex for body composition estimate'),
-                      items: const [
-                        DropdownMenuItem(value: 'male', child: Text('Male')),
-                        DropdownMenuItem(
-                            value: 'female', child: Text('Female')),
-                        DropdownMenuItem(
-                            value: 'other',
-                            child: Text('Other / not specified'))
-                      ],
-                      onChanged: (v) => setState(() => sex = v ?? 'other')),
-                  const SizedBox(height: 10),
-                  FilledButton(
-                      onPressed: _saveSettings,
-                      child: const Text('Save health preferences')),
-                ])),
-            const SizedBox(height: 14),
-            SectionCard(
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                  Text('Appearance',
-                      style: Theme.of(context).textTheme.titleLarge),
-                  const SizedBox(height: 8),
-                  SegmentedButton<ThemeMode>(segments: const [
-                    ButtonSegment(
-                        value: ThemeMode.system,
-                        label: Text('System'),
-                        icon: Icon(Icons.settings_suggest_outlined)),
-                    ButtonSegment(
-                        value: ThemeMode.light,
-                        label: Text('Light'),
-                        icon: Icon(Icons.light_mode_outlined)),
-                    ButtonSegment(
-                        value: ThemeMode.dark,
-                        label: Text('Dark'),
-                        icon: Icon(Icons.dark_mode_outlined))
-                  ], selected: {
-                    theme.mode
-                  }, onSelectionChanged: (v) => theme.setMode(v.first)),
-                  const SizedBox(height: 16),
-                  Text('Accent color',
-                      style: Theme.of(context).textTheme.titleSmall),
-                  const SizedBox(height: 8),
-                  Wrap(spacing: 12, runSpacing: 10, children: [
-                    for (final entry in ThemeState.accents.entries)
-                      Tooltip(
-                          message: entry.key[0].toUpperCase() +
-                              entry.key.substring(1),
-                          child: InkWell(
-                              onTap: () => theme.setAccent(entry.key),
-                              customBorder: const CircleBorder(),
-                              child: Container(
-                                  width: 38,
-                                  height: 38,
-                                  decoration: BoxDecoration(
-                                      color: entry.value,
-                                      shape: BoxShape.circle,
-                                      border: Border.all(
-                                          color: theme.accent == entry.key
-                                              ? Theme.of(context)
-                                                  .colorScheme
-                                                  .onSurface
-                                              : Colors.transparent,
-                                          width: 2),
-                                      boxShadow: theme.accent == entry.key
-                                          ? [
-                                              BoxShadow(
-                                                  color: entry.value
-                                                      .withValues(alpha: .35),
-                                                  blurRadius: 8)
-                                            ]
-                                          : null),
-                                  child: theme.accent == entry.key
-                                      ? const Icon(Icons.check,
-                                          color: Colors.white, size: 19)
-                                      : null))),
+          return LayoutBuilder(builder: (context, viewport) {
+            final horizontal = viewport.maxWidth < 600 ? 16.0 : 24.0;
+            final contentWidth = viewport.maxWidth - horizontal * 2;
+            final columns = contentWidth >= 860 ? 2 : 1;
+            final gap = 14.0;
+            final panelWidth =
+                columns == 2 ? (contentWidth - gap) / 2 : contentWidth;
+            return ListView(
+                padding: EdgeInsets.fromLTRB(horizontal, 22, horizontal, 28),
+                children: [
+                  const PageHeading('Settings',
+                      subtitle: 'Your profile, units, theme and privacy.'),
+                  Wrap(spacing: gap, runSpacing: gap, children: [
+                    SizedBox(
+                        width: panelWidth,
+                        child: SectionCard(
+                            child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                              Text('Profile',
+                                  style:
+                                      Theme.of(context).textTheme.titleLarge),
+                              const SizedBox(height: 10),
+                              Wrap(
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  spacing: 12,
+                                  runSpacing: 8,
+                                  children: [
+                                    CircleAvatar(
+                                        radius: 28,
+                                        backgroundImage: p['avatar_url'] == null
+                                            ? null
+                                            : NetworkImage(Uri.parse(widget
+                                                    .api.dio.options.baseUrl)
+                                                .replace(
+                                                    path: str(p['avatar_url']))
+                                                .toString()),
+                                        child: p['avatar_url'] == null
+                                            ? const Icon(Icons.person_outline)
+                                            : null),
+                                    OutlinedButton.icon(
+                                        onPressed: _uploadAvatar,
+                                        icon: const Icon(
+                                            Icons.photo_camera_outlined),
+                                        label: const Text('Change avatar')),
+                                    if (p['avatar_url'] != null)
+                                      IconButton(
+                                          tooltip: 'Remove avatar',
+                                          onPressed: _removeAvatar,
+                                          icon:
+                                              const Icon(Icons.delete_outline)),
+                                  ]),
+                              const SizedBox(height: 10),
+                              Text('Username · ${str(p['username'])}'),
+                              const SizedBox(height: 8),
+                              TextField(
+                                  controller:
+                                      _c('display_name', p['display_name']),
+                                  decoration:
+                                      _settingsField(context, 'Display name')),
+                              const SizedBox(height: 10),
+                              TextField(
+                                  controller: _c('bio', p['bio']),
+                                  maxLines: 3,
+                                  decoration: _settingsField(context, 'Bio')),
+                              SwitchListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  title: const Text('Public progress profile'),
+                                  subtitle: const Text(
+                                      'Let people view the public information you share.'),
+                                  value: isPublic,
+                                  onChanged: (v) =>
+                                      setState(() => isPublic = v)),
+                              FilledButton(
+                                  onPressed: _saveProfile,
+                                  child: const Text('Save profile')),
+                              if (p['username'] != null && isPublic) ...[
+                                const SizedBox(height: 8),
+                                OutlinedButton.icon(
+                                    onPressed: () => _copyPublicProfileLink(
+                                        context,
+                                        widget.api,
+                                        str(p['username'])),
+                                    icon: const Icon(Icons.link),
+                                    label:
+                                        const Text('Copy public profile link')),
+                              ],
+                            ]))),
+                    SizedBox(
+                        width: panelWidth,
+                        child: SectionCard(
+                            child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                              Text('Custom measurement sites',
+                                  style:
+                                      Theme.of(context).textTheme.titleLarge),
+                              const SizedBox(height: 6),
+                              const Text(
+                                  'Manage the custom locations you added from Measurements.'),
+                              if (definitions.where((raw) {
+                                final d = asJson(raw);
+                                return d['is_system'] != 1 &&
+                                    d['is_system'] != true;
+                              }).isEmpty)
+                                const Padding(
+                                    padding: EdgeInsets.only(top: 10),
+                                    child: Text(
+                                        'No custom sites yet. Add one from Measurements.')),
+                              for (final raw in definitions.where((raw) {
+                                final d = asJson(raw);
+                                return d['is_system'] != 1 &&
+                                    d['is_system'] != true;
+                              }))
+                                Builder(builder: (context) {
+                                  final d = asJson(raw);
+                                  return ListTile(
+                                      contentPadding: EdgeInsets.zero,
+                                      title: Text(str(d['name'])),
+                                      subtitle:
+                                          Text('Base unit: ${str(d['unit'])}'),
+                                      trailing: IconButton(
+                                          tooltip: 'Delete custom site',
+                                          icon:
+                                              const Icon(Icons.delete_outline),
+                                          onPressed: () async {
+                                            if (await confirmAction(
+                                                context,
+                                                'Delete ${str(d['name'])}?',
+                                                'Historical entries for this site will also be deleted.')) {
+                                              try {
+                                                await widget.api.delete(
+                                                    '/measurements/definitions/${d['id']}');
+                                                if (mounted) setState(_load);
+                                              } catch (e) {
+                                                if (context.mounted) {
+                                                  await showFormaError(
+                                                      context, e);
+                                                }
+                                              }
+                                            }
+                                          }));
+                                }),
+                            ]))),
+                    SizedBox(
+                        width: panelWidth,
+                        child: SectionCard(
+                            child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                              Text('Health preferences',
+                                  style:
+                                      Theme.of(context).textTheme.titleLarge),
+                              const SizedBox(height: 10),
+                              TextField(
+                                  controller: _c('height_cm', s['height_cm']),
+                                  keyboardType:
+                                      const TextInputType.numberWithOptions(
+                                          decimal: true),
+                                  decoration:
+                                      _settingsField(context, 'Height in cm')),
+                              const SizedBox(height: 10),
+                              TextField(
+                                  controller:
+                                      _c('date_of_birth', s['date_of_birth']),
+                                  decoration: _settingsField(
+                                      context, 'Date of birth (YYYY-MM-DD)')),
+                              const SizedBox(height: 10),
+                              DropdownButtonFormField<String>(
+                                  initialValue: units,
+                                  decoration: _settingsField(context, 'Units'),
+                                  items: const [
+                                    DropdownMenuItem(
+                                        value: 'metric',
+                                        child: Text('Metric (kg, cm)')),
+                                    DropdownMenuItem(
+                                        value: 'imperial',
+                                        child: Text('Imperial (lb, in)'))
+                                  ],
+                                  onChanged: (v) =>
+                                      setState(() => units = v ?? 'metric')),
+                              const SizedBox(height: 10),
+                              DropdownButtonFormField<String>(
+                                  initialValue: sex,
+                                  decoration: _settingsField(context,
+                                      'Sex for body composition estimate'),
+                                  items: const [
+                                    DropdownMenuItem(
+                                        value: 'male', child: Text('Male')),
+                                    DropdownMenuItem(
+                                        value: 'female', child: Text('Female')),
+                                    DropdownMenuItem(
+                                        value: 'other',
+                                        child: Text('Other / not specified'))
+                                  ],
+                                  onChanged: (v) =>
+                                      setState(() => sex = v ?? 'other')),
+                              const SizedBox(height: 10),
+                              FilledButton(
+                                  onPressed: _saveSettings,
+                                  child: const Text('Save health preferences')),
+                            ]))),
+                    SizedBox(
+                        width: panelWidth,
+                        child: SectionCard(
+                            child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                              Text('Appearance',
+                                  style:
+                                      Theme.of(context).textTheme.titleLarge),
+                              const SizedBox(height: 8),
+                              SegmentedButton<ThemeMode>(
+                                  segments: const [
+                                    ButtonSegment(
+                                        value: ThemeMode.system,
+                                        label: Text('System'),
+                                        icon: Icon(
+                                            Icons.settings_suggest_outlined)),
+                                    ButtonSegment(
+                                        value: ThemeMode.light,
+                                        label: Text('Light'),
+                                        icon: Icon(Icons.light_mode_outlined)),
+                                    ButtonSegment(
+                                        value: ThemeMode.dark,
+                                        label: Text('Dark'),
+                                        icon: Icon(Icons.dark_mode_outlined))
+                                  ],
+                                  selected: {
+                                    theme.mode
+                                  },
+                                  onSelectionChanged: (v) =>
+                                      theme.setMode(v.first)),
+                              const SizedBox(height: 8),
+                              SwitchListTile.adaptive(
+                                contentPadding: EdgeInsets.zero,
+                                value: theme.useDeviceColors,
+                                onChanged: theme.setUseDeviceColors,
+                                title: const Text('Use device colors'),
+                                subtitle: const Text(
+                                    'Match Material You colors from your device when available.'),
+                                secondary: const Icon(Icons.palette_outlined),
+                              ),
+                              const SizedBox(height: 16),
+                              Text('Accent color',
+                                  style:
+                                      Theme.of(context).textTheme.titleSmall),
+                              const SizedBox(height: 8),
+                              Wrap(spacing: 12, runSpacing: 10, children: [
+                                for (final entry in ThemeState.accents.entries)
+                                  Tooltip(
+                                      message: entry.key[0].toUpperCase() +
+                                          entry.key.substring(1),
+                                      child: InkWell(
+                                          onTap: () =>
+                                              theme.setAccent(entry.key),
+                                          customBorder: const CircleBorder(),
+                                          child: Container(
+                                              width: 38,
+                                              height: 38,
+                                              decoration: BoxDecoration(
+                                                  color: entry.value,
+                                                  shape: BoxShape.circle,
+                                                  border: Border.all(
+                                                      color: theme.accent == entry.key
+                                                          ? Theme.of(context)
+                                                              .colorScheme
+                                                              .onSurface
+                                                          : Colors.transparent,
+                                                      width: 2),
+                                                  boxShadow: theme.accent ==
+                                                          entry.key
+                                                      ? [
+                                                          BoxShadow(
+                                                              color: entry.value
+                                                                  .withValues(
+                                                                      alpha:
+                                                                          .35),
+                                                              blurRadius: 8)
+                                                        ]
+                                                      : null),
+                                              child: theme.accent == entry.key
+                                                  ? const Icon(Icons.check, color: Colors.white, size: 19)
+                                                  : null))),
+                              ]),
+                            ]))),
+                    SizedBox(
+                        width: panelWidth,
+                        child: SectionCard(
+                            child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                              Text('Account',
+                                  style:
+                                      Theme.of(context).textTheme.titleLarge),
+                              const SizedBox(height: 8),
+                              Text('Role · ${str(p['role'], 'user')}'),
+                              Text('Created · ${displayDate(p['created_at'])}'),
+                              const SizedBox(height: 8),
+                              OutlinedButton.icon(
+                                  onPressed: () => context.go('/data'),
+                                  icon: const Icon(Icons.backup_outlined),
+                                  label: const Text('Data export & backups')),
+                              if (p['role'] == 'admin')
+                                OutlinedButton.icon(
+                                    onPressed: () => context.go('/admin'),
+                                    icon: const Icon(
+                                        Icons.admin_panel_settings_outlined),
+                                    label: const Text('Administration')),
+                            ]))),
+                    SizedBox(
+                        width: panelWidth,
+                        child: const SectionCard(
+                            child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                              Text('About Forma',
+                                  style: TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.w600)),
+                              SizedBox(height: 8),
+                              Text(
+                                  'A private, self-hosted tracker for weight, measurements, nutrition, fasting and progress. Your records stay with your Forma server.'),
+                              SizedBox(height: 8),
+                              Text(
+                                  'Flutter edition · Privacy first · No telemetry'),
+                            ]))),
                   ]),
-                ])),
-            const SizedBox(height: 14),
-            SectionCard(
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                  Text('Account',
-                      style: Theme.of(context).textTheme.titleLarge),
-                  const SizedBox(height: 8),
-                  Text('Role · ${str(p['role'], 'user')}'),
-                  Text('Created · ${displayDate(p['created_at'])}'),
-                  const SizedBox(height: 8),
-                  OutlinedButton.icon(
-                      onPressed: () => context.go('/data'),
-                      icon: const Icon(Icons.backup_outlined),
-                      label: const Text('Data export & backups')),
-                  if (p['role'] == 'admin')
-                    OutlinedButton.icon(
-                        onPressed: () => context.go('/admin'),
-                        icon: const Icon(Icons.admin_panel_settings_outlined),
-                        label: const Text('Administration')),
-                ])),
-            const SizedBox(height: 14),
-            const SectionCard(
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                  Text('About Forma',
-                      style:
-                          TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
-                  SizedBox(height: 8),
-                  Text(
-                      'A private, self-hosted tracker for weight, measurements, nutrition, fasting and progress. Your records stay with your Forma server.'),
-                  SizedBox(height: 8),
-                  Text('Flutter edition · Privacy first · No telemetry'),
-                ])),
-          ]);
+                ]);
+          });
         },
       );
 }
@@ -781,10 +904,9 @@ class _DataScreenState extends State<DataScreen> {
           const SizedBox(height: 10),
           TextField(
               controller: input,
-              minLines: 4,
-              maxLines: 8,
-              decoration:
-                  const InputDecoration(labelText: 'Or paste JSON backup')),
+              minLines: 3,
+              maxLines: 6,
+              decoration: _backupJsonDecoration(context)),
           if (preview != null) ...[
             const SizedBox(height: 12),
             SelectableText(const JsonEncoder.withIndent('  ').convert(preview)),
@@ -805,6 +927,25 @@ class _DataScreenState extends State<DataScreen> {
                   'Forma keeps account data on your server. Downloaded backups may include sensitive health information; keep them somewhere private.'))
         ]))
       ]);
+}
+
+InputDecoration _backupJsonDecoration(BuildContext context) {
+  final colors = Theme.of(context).colorScheme;
+  final outline = OutlineInputBorder(
+    borderRadius: BorderRadius.circular(14),
+    borderSide: BorderSide(color: colors.outlineVariant),
+  );
+  return InputDecoration(
+    labelText: 'Paste JSON backup',
+    alignLabelWithHint: true,
+    filled: true,
+    fillColor: colors.surfaceContainerLow,
+    border: outline,
+    enabledBorder: outline,
+    focusedBorder: outline.copyWith(
+      borderSide: BorderSide(color: colors.primary, width: 1.6),
+    ),
+  );
 }
 
 class AdminScreen extends StatefulWidget {
@@ -1250,25 +1391,45 @@ class _ProfileTag extends StatelessWidget {
       );
 }
 
+String fastingWidgetApiPath(Uri routeUri, {Uri? browserUri}) {
+  final token =
+      routeUri.queryParameters['token'] ?? browserUri?.queryParameters['token'];
+  final username = routeUri.queryParameters['username'] ??
+      browserUri?.queryParameters['username'];
+  final query = token != null
+      ? '?token=${Uri.encodeQueryComponent(token)}'
+      : username != null
+          ? '?username=${Uri.encodeQueryComponent(username)}'
+          : '';
+  return '/public/fasting/widget$query';
+}
+
 class FastingWidgetScreen extends StatelessWidget {
-  const FastingWidgetScreen({super.key, required this.api});
+  const FastingWidgetScreen(
+      {super.key, required this.api, this.token, this.username});
   final ApiClient api;
+  final String? token;
+  final String? username;
   @override
   Widget build(BuildContext context) {
-    final uri = Uri.base;
-    final token = uri.queryParameters['token'];
-    final user = uri.queryParameters['username'];
-    final query = token != null
-        ? '?token=${Uri.encodeQueryComponent(token)}'
-        : user != null
-            ? '?username=${Uri.encodeQueryComponent(user)}'
-            : '';
+    final routeUri = Uri(path: '/fasting/widget', queryParameters: {
+      if (token != null) 'token': token,
+      if (username != null) 'username': username,
+    });
     return FutureBuilder<Json>(
-        future: api.getMap('/public/fasting/widget$query'),
+        future:
+            api.getMap(fastingWidgetApiPath(routeUri, browserUri: Uri.base)),
         builder: (context, s) {
           if (s.hasError) {
-            return const Scaffold(
-                body: Center(child: Text('Fasting widget unavailable')));
+            final isInvalidLink = s.error is DioException &&
+                (s.error as DioException).response?.statusCode == 404;
+            final hasLink = (token?.isNotEmpty ?? false) ||
+                (username?.isNotEmpty ?? false) ||
+                Uri.base.queryParameters.containsKey('token') ||
+                Uri.base.queryParameters.containsKey('username');
+            return Scaffold(
+                body: _FastingWidgetError(
+                    invalidLink: isInvalidLink, hasLink: hasLink));
           }
           if (!s.hasData) {
             return const Scaffold(
@@ -1328,6 +1489,42 @@ class FastingWidgetScreen extends StatelessWidget {
                                 const Text('Powered by Forma')
                               ]))))));
         });
+  }
+}
+
+class _FastingWidgetError extends StatelessWidget {
+  const _FastingWidgetError({required this.invalidLink, required this.hasLink});
+
+  final bool invalidLink;
+  final bool hasLink;
+
+  @override
+  Widget build(BuildContext context) {
+    final message = !hasLink
+        ? 'This widget link is incomplete. Create a fresh link from the Fasting page.'
+        : invalidLink
+            ? 'This widget link is invalid, was regenerated, or belongs to another Forma server. Create a fresh link from the Fasting page.'
+            : 'Forma could not load this widget. Check that the server is online, then try again.';
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 440),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: SectionCard(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.link_off_rounded,
+                  size: 34, color: Theme.of(context).colorScheme.primary),
+              const SizedBox(height: 12),
+              Text('Fasting widget unavailable',
+                  style: Theme.of(context).textTheme.titleLarge,
+                  textAlign: TextAlign.center),
+              const SizedBox(height: 8),
+              Text(message, textAlign: TextAlign.center),
+            ]),
+          ),
+        ),
+      ),
+    );
   }
 }
 

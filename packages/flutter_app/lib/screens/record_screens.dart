@@ -257,97 +257,107 @@ class _WeightScreenState extends State<WeightScreen> {
             .reversed
             .toList();
         final cur = asJson(stats['currentWeight']);
-        return ListView(
-            padding: const EdgeInsets.fromLTRB(20, 22, 20, 28),
-            children: [
-              PageHeading('Weight',
-                  subtitle:
-                      'Track your trend with multiple time-stamped entries per day.',
-                  trailing: FilledButton.icon(
-                      onPressed: _add,
-                      icon: const Icon(Icons.add),
-                      label: const Text('Log weight'))),
-              MetricGrid(children: [
-                MetricTile(
-                    label: 'Current weight',
-                    value: cur.isEmpty
-                        ? '—'
-                        : '${numVal(cur['value']).toStringAsFixed(1)} kg',
-                    detail: displayDate(cur['recorded_at']),
-                    icon: Icons.monitor_weight_outlined),
-                MetricTile(
-                    label: 'Total change',
-                    value: stats['totalChange'] == null
-                        ? '—'
-                        : '${numVal(stats['totalChange']).toStringAsFixed(1)} kg',
-                    detail: stats['percentChange'] == null
-                        ? 'Start logging to see change'
-                        : '${stats['percentChange']}% overall',
-                    icon: Icons.trending_down),
-                MetricTile(
-                    label: 'Trend rate',
-                    value: stats['trend'] == null
-                        ? '—'
-                        : '${numVal(stats['trend']).toStringAsFixed(2)} kg/day',
-                    detail: '${all.length} entries',
-                    icon: Icons.show_chart),
-              ]),
-              const SizedBox(height: 14),
-              SectionCard(
-                  child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                    Row(children: [
-                      Expanded(
-                          child: Text('History',
-                              style: Theme.of(context).textTheme.titleLarge)),
-                      DropdownButton<int>(
-                          value: days,
-                          items: const [30, 90, 180, 365, 3650]
-                              .map((d) => DropdownMenuItem(
-                                  value: d,
-                                  child:
-                                      Text(d == 3650 ? 'All time' : '$d days')))
-                              .toList(),
-                          onChanged: (v) => setState(() => days = v ?? 90))
-                    ]),
-                    SizedBox(
-                        height: 235, child: WeightLineChart(entries: entries)),
-                  ])),
-              const SizedBox(height: 14),
-              SectionCard(
-                  child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                    Text('Entries',
-                        style: Theme.of(context).textTheme.titleLarge),
-                    const SizedBox(height: 8),
-                    if (all.isEmpty)
-                      emptyMessage(context, 'Your first entry starts the trend',
-                          'Log your weight to see progress here.'),
-                    for (final raw in all)
-                      _WeightRow(
-                          entry: asJson(raw),
-                          onEdit: () => _add(entry: asJson(raw)),
-                          onDelete: () async {
-                            if (!await confirmAction(
-                                context,
-                                'Delete weight entry?',
-                                'This removes this one measurement.')) {
-                              return;
-                            }
-                            try {
-                              await widget.api
-                                  .delete('/weight/${asJson(raw)['id']}');
-                              if (!context.mounted) return;
-                              setState(_load);
-                            } catch (e) {
-                              if (!context.mounted) return;
-                              await showFormaError(context, e);
-                            }
-                          }),
-                  ])),
-            ]);
+        return LayoutBuilder(builder: (context, viewport) {
+          final horizontal = viewport.maxWidth < 600
+              ? 16.0
+              : viewport.maxWidth > 1280
+                  ? (viewport.maxWidth - 1280) / 2
+                  : 24.0;
+          return ListView(
+              padding: EdgeInsets.fromLTRB(horizontal, 22, horizontal, 28),
+              children: [
+                PageHeading('Weight',
+                    subtitle:
+                        'Track your trend with multiple time-stamped entries per day.',
+                    trailing: FilledButton.icon(
+                        onPressed: _add,
+                        icon: const Icon(Icons.add),
+                        label: const Text('Log weight'))),
+                MetricGrid(children: [
+                  MetricTile(
+                      label: 'Current weight',
+                      value: cur.isEmpty
+                          ? '—'
+                          : '${numVal(cur['value']).toStringAsFixed(1)} kg',
+                      detail: displayDate(cur['recorded_at']),
+                      icon: Icons.monitor_weight_outlined),
+                  MetricTile(
+                      label: 'Total change',
+                      value: stats['totalChange'] == null
+                          ? '—'
+                          : '${numVal(stats['totalChange']).toStringAsFixed(1)} kg',
+                      detail: stats['percentChange'] == null
+                          ? 'Start logging to see change'
+                          : '${stats['percentChange']}% overall',
+                      icon: Icons.trending_down),
+                  MetricTile(
+                      label: 'Trend rate',
+                      value: stats['trend'] == null
+                          ? '—'
+                          : '${numVal(stats['trend']).toStringAsFixed(2)} kg/day',
+                      detail: '${all.length} entries',
+                      icon: Icons.show_chart),
+                ]),
+                const SizedBox(height: 14),
+                SectionCard(
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                      Row(children: [
+                        Expanded(
+                            child: Text('History',
+                                style: Theme.of(context).textTheme.titleLarge)),
+                        DropdownButton<int>(
+                            value: days,
+                            items: const [30, 90, 180, 365, 3650]
+                                .map((d) => DropdownMenuItem(
+                                    value: d,
+                                    child: Text(
+                                        d == 3650 ? 'All time' : '$d days')))
+                                .toList(),
+                            onChanged: (v) => setState(() => days = v ?? 90))
+                      ]),
+                      SizedBox(
+                          height: 235,
+                          child: WeightLineChart(entries: entries)),
+                    ])),
+                const SizedBox(height: 14),
+                SectionCard(
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                      Text('Entries',
+                          style: Theme.of(context).textTheme.titleLarge),
+                      const SizedBox(height: 8),
+                      if (all.isEmpty)
+                        emptyMessage(
+                            context,
+                            'Your first entry starts the trend',
+                            'Log your weight to see progress here.'),
+                      for (final raw in all)
+                        _WeightRow(
+                            entry: asJson(raw),
+                            onEdit: () => _add(entry: asJson(raw)),
+                            onDelete: () async {
+                              if (!await confirmAction(
+                                  context,
+                                  'Delete weight entry?',
+                                  'This removes this one measurement.')) {
+                                return;
+                              }
+                              try {
+                                await widget.api
+                                    .delete('/weight/${asJson(raw)['id']}');
+                                if (!context.mounted) return;
+                                setState(_load);
+                              } catch (e) {
+                                if (!context.mounted) return;
+                                await showFormaError(context, e);
+                              }
+                            }),
+                    ])),
+              ]);
+        });
       });
 }
 
@@ -971,9 +981,13 @@ class _MeasurementsScreenState extends State<MeasurementsScreen> {
 
         return LayoutBuilder(builder: (context, outer) {
           final compact = outer.maxWidth < 650;
+          final horizontal = compact
+              ? 16.0
+              : outer.maxWidth > 1360
+                  ? (outer.maxWidth - 1360) / 2
+                  : 24.0;
           return ListView(
-              padding: EdgeInsets.fromLTRB(
-                  compact ? 16 : 30, 22, compact ? 16 : 30, 32),
+              padding: EdgeInsets.fromLTRB(horizontal, 22, horizontal, 32),
               children: [
                 PageHeading('Body Measurements',
                     subtitle:

@@ -1,9 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:forma/screens/account_screens.dart';
 import 'package:forma/theme/forma_theme.dart';
 import 'package:forma/widgets/forma_widgets.dart';
 
 void main() {
+  test('fasting widget keeps its token after startup deep-link restoration',
+      () {
+    final widgetLink = Uri.parse('/fasting/widget?token=synthetic_test_token');
+    final startup = Uri.parse(
+        '/startup?from=${Uri.encodeComponent(widgetLink.toString())}');
+    final restoredRoute = Uri.parse(startup.queryParameters['from']!);
+
+    expect(fastingWidgetApiPath(restoredRoute),
+        '/public/fasting/widget?token=synthetic_test_token');
+  });
+
   testWidgets('Forma metric tile renders its label and value', (tester) async {
     await tester.pumpWidget(MaterialApp(
       theme: FormaTheme.light,

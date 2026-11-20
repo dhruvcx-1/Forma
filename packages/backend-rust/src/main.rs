@@ -298,6 +298,9 @@ async fn setup(State(app): State<App>, ApiJson(input): ApiJson<AuthInput>) -> Re
     if count > 0 {
         return error(StatusCode::CONFLICT, "App is already set up");
     }
+    // create_account() accesses the same SQLite mutex. Release the guard from
+    // the setup check first so the first-run request cannot deadlock.
+    drop(conn);
     create_account(&app, input, "admin")
 }
 async fn register(State(app): State<App>, ApiJson(input): ApiJson<AuthInput>) -> Response {
@@ -4510,6 +4513,7 @@ mod fasting_widget_tests {
             CREATE TABLE profiles (
                 id TEXT PRIMARY KEY,
                 username TEXT NOT NULL,
+                password_hash TEXT NOT NULL DEFAULT '',
                 display_name TEXT,
                 avatar_url TEXT,
                 bio TEXT,
@@ -4567,12 +4571,40 @@ mod fasting_widget_tests {
         uri: &str,
         authenticated: bool,
     ) -> (StatusCode, Value) {
+        request_with_body(app, method, uri, authenticated, Body::empty()).await
+    }
+
+    async fn request_json(
+        app: Router,
+        method: Method,
+        uri: &str,
+        authenticated: bool,
+        body: Value,
+    ) -> (StatusCode, Value) {
+        request_with_body(
+            app,
+            method,
+            uri,
+            authenticated,
+            Body::from(body.to_string()),
+        )
+        .await
+    }
+
+    async fn request_with_body(
+        app: Router,
+        method: Method,
+        uri: &str,
+        authenticated: bool,
+        body: Body,
+    ) -> (StatusCode, Value) {
         let mut builder = Request::builder().method(method).uri(uri);
+        builder = builder.header(header::CONTENT_TYPE, "application/json");
         if authenticated {
             builder = builder.header(header::COOKIE, format!("session_id={SESSION_ID}"));
         }
         let response = app
-            .oneshot(builder.body(Body::empty()).expect("build fixture request"))
+            .oneshot(builder.body(body).expect("build fixture request"))
             .await
             .expect("route fixture request");
         let status = response.status();
@@ -4701,5 +4733,42 @@ mod fasting_widget_tests {
         )
         .await;
         assert_eq!(regenerate_status, StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn first_run_setup_releases_database_lock_before_creating_account() {
+        let (_, db) = test_app();
+        db.lock()
+            .expect("fixture database lock")
+            .execute("DELETE FROM profiles", [])
+            .expect("reset disposable fixture profile");
+        let app_state = App {
+            db,
+            production: false,
+        };
+        let app = Router::new()
+            .route("/api/auth/setup", post(setup))
+            .route("/api/auth/status", get(auth_status))
+            .layer(middleware::from_fn(authenticate))
+            .with_state(app_state);
+
+        let (status, profile) = request_json(
+            app.clone(),
+            Method::POST,
+            "/api/auth/setup",
+            false,
+            json!({
+                "username": "setup_fixture",
+                "password": "synthetic-test-password",
+                "displayName": "Setup Fixture"
+            }),
+        )
+        .await;
+        assert_eq!(status, StatusCode::CREATED);
+        assert_eq!(profile["username"], "setup_fixture");
+
+        let (status, state) = request(app, Method::GET, "/api/auth/status", false).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(state["isSetup"], true);
     }
 }

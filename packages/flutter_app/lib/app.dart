@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:dynamic_color/dynamic_color.dart' as dynamic_color;
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
@@ -99,7 +100,10 @@ class _FormaAppState extends State<FormaApp> {
                 api: widget.api, username: state.pathParameters['username']!)),
         GoRoute(
             path: '/fasting/widget',
-            builder: (_, __) => FastingWidgetScreen(api: widget.api)),
+            builder: (_, state) => FastingWidgetScreen(
+                api: widget.api,
+                token: state.uri.queryParameters['token'],
+                username: state.uri.queryParameters['username'])),
         ShellRoute(
             builder: (_, state, child) => FormaShell(
                 api: widget.api, location: state.matchedLocation, child: child),
@@ -147,13 +151,17 @@ class _FormaAppState extends State<FormaApp> {
   @override
   Widget build(BuildContext context) {
     final theme = context.watch<ThemeState>();
-    return MaterialApp.router(
-      title: 'Forma',
-      debugShowCheckedModeBanner: false,
-      theme: FormaTheme.lightFor(theme.accentColor),
-      darkTheme: FormaTheme.darkFor(theme.accentColor),
-      themeMode: theme.mode,
-      routerConfig: router,
+    return dynamic_color.DynamicColorBuilder(
+      builder: (lightDynamic, darkDynamic) => MaterialApp.router(
+        title: 'Forma',
+        debugShowCheckedModeBanner: false,
+        theme: FormaTheme.lightFor(theme.accentColor,
+            systemAccent: theme.useDeviceColors ? lightDynamic?.primary : null),
+        darkTheme: FormaTheme.darkFor(theme.accentColor,
+            systemAccent: theme.useDeviceColors ? darkDynamic?.primary : null),
+        themeMode: theme.mode,
+        routerConfig: router,
+      ),
     );
   }
 
@@ -264,7 +272,16 @@ class FormaShell extends StatelessWidget {
           ]),
       body: Row(children: [
         if (wide) _DesktopNavigation(selected: selected, user: session.user),
-        Expanded(child: child),
+        Expanded(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: wide ? 1280 : double.infinity,
+              ),
+              child: child,
+            ),
+          ),
+        ),
       ]),
       bottomNavigationBar: wide
           ? null
