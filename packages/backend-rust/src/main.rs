@@ -4603,12 +4603,13 @@ mod fasting_widget_tests {
             .lock()
             .expect("fixture database lock")
             .query_row(
-                "SELECT value FROM settings WHERE profile_id=?1 AND key='fasting_widget_token'",
+                "SELECT profile_id,value FROM settings WHERE profile_id=?1 AND key='fasting_widget_token'",
                 [PROFILE_ID],
-                |row| row.get::<_, String>(0),
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
             )
             .expect("token must be persisted");
-        assert!(persisted == first_token);
+        assert!(persisted.0 == PROFILE_ID);
+        assert!(persisted.1 == first_token);
 
         let (status, public) = request(
             app,
@@ -4647,12 +4648,13 @@ mod fasting_widget_tests {
             .lock()
             .expect("fixture database lock")
             .query_row(
-                "SELECT value FROM settings WHERE profile_id=?1 AND key='fasting_widget_token'",
+                "SELECT profile_id,value FROM settings WHERE profile_id=?1 AND key='fasting_widget_token'",
                 [PROFILE_ID],
-                |row| row.get::<_, String>(0),
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
             )
             .expect("regenerated token must be persisted");
-        assert!(persisted == new_token);
+        assert!(persisted.0 == PROFILE_ID);
+        assert!(persisted.1 == new_token);
 
         let (old_status, _) = request(
             app.clone(),
