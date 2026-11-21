@@ -1,4 +1,4 @@
-name: Build and Publish Docker Image
+name: Publish Forma release
 
 on:
   push:
@@ -13,41 +13,16 @@ env:
   IMAGE_NAME: ${{ github.repository_owner }}/forma
 
 jobs:
-  verify-rust-backend:
-    name: Verify staged Rust backend
-    if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
-
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt
-
-      - name: Check Rust formatting
-        run: cargo fmt --manifest-path packages/backend-rust/Cargo.toml -- --check
-
-      - name: Compile Rust backend
-        run: cargo check --locked --manifest-path packages/backend-rust/Cargo.toml
-
   build-android:
     name: Build Android APK
-    # Build the APK only for version-tag releases, in parallel with the Docker image.
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
     env:
-      FORMA_PERSONAL_API_BASE_URL: ${{ secrets.FORMA_PERSONAL_API_BASE_URL }}
       FORMA_ANDROID_KEYSTORE_BASE64: ${{ secrets.FORMA_ANDROID_KEYSTORE_BASE64 }}
       FORMA_ANDROID_STORE_PASSWORD: ${{ secrets.FORMA_ANDROID_STORE_PASSWORD }}
       FORMA_ANDROID_KEY_ALIAS: ${{ secrets.FORMA_ANDROID_KEY_ALIAS }}
       FORMA_ANDROID_KEY_PASSWORD: ${{ secrets.FORMA_ANDROID_KEY_PASSWORD }}
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -72,162 +47,53 @@ jobs:
         working-directory: packages/flutter_app
         run: flutter pub get --enforce-lockfile
 
-      - name: Validate Android signing key configuration
+      - name: Validate Android signing secrets
         shell: bash
         run: |
-          any_set=false
-          all_set=true
           for value in "$FORMA_ANDROID_KEYSTORE_BASE64" "$FORMA_ANDROID_STORE_PASSWORD" "$FORMA_ANDROID_KEY_ALIAS" "$FORMA_ANDROID_KEY_PASSWORD"; do
-            if [[ -n "$value" ]]; then any_set=true; else all_set=false; fi
+            if [[ -z "$value" ]]; then
+              echo "Configure all four Android signing secrets before creating a release."
+              exit 1
+            fi
           done
-          if [[ "$any_set" == true && "$all_set" == false ]]; then
-            echo "Configure all four Android signing secrets together. See README.md."
-            exit 1
-          fi
-          if [[ "$GITHUB_REF_TYPE" == "tag" && "$all_set" == false ]]; then
-            echo "Versioned APK releases require the four Android signing secrets. See README.md."
-            exit 1
-          fi
 
       - name: Decode Android signing key
-        if: env.FORMA_ANDROID_KEYSTORE_BASE64 != ''
         shell: bash
         run: |
           KEYSTORE_PATH="$RUNNER_TEMP/forma-release.jks"
           printf '%s' "$FORMA_ANDROID_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
           echo "FORMA_ANDROID_KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
 
-      - name: Determine Android version
-        id: android-version
-        shell: bash
+      - name: Build release APK
         working-directory: packages/flutter_app
-        run: |
-          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
-            if [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-              echo "APK release tags must use the stable vMAJOR.MINOR.PATCH format (for example, v1.2.3)."
-              exit 1
-            fi
-            APP_VERSION="${GITHUB_REF_NAME#v}"
-          else
-            APP_VERSION="$(sed -n 's/^version: *\([^+]*\).*/\1/p' pubspec.yaml | head -n 1)"
-          fi
-          if [[ ! "$APP_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Invalid Android version name: $APP_VERSION"
-            exit 1
-          fi
-          echo "name=$APP_VERSION" >> "$GITHUB_OUTPUT"
-          echo "number=$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
+        run: flutter build apk --release --build-name "${GITHUB_REF_NAME#v}" --build-number "$GITHUB_RUN_NUMBER"
 
-      - name: Build host-configurable Android APK
+      - name: Name APK
         working-directory: packages/flutter_app
-        run: flutter build apk --release --build-name "${{ steps.android-version.outputs.name }}" --build-number "${{ steps.android-version.outputs.number }}"
+        run: cp build/app/outputs/flutter-apk/app-release.apk "Forma-Android-${GITHUB_REF_NAME}.apk"
 
-      - name: Name APK for release or build
-        working-directory: packages/flutter_app
-        shell: bash
-        run: |
-          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
-            APK_NAME="Forma-Android-${GITHUB_REF_NAME}.apk"
-          else
-            APK_NAME="Forma-Android-Universal.apk"
-          fi
-          cp build/app/outputs/flutter-apk/app-release.apk "$APK_NAME"
-
-      - name: Build personal Android APK (optional)
-        if: env.FORMA_PERSONAL_API_BASE_URL != ''
-        working-directory: packages/flutter_app
-        run: flutter build apk --release --build-name "${{ steps.android-version.outputs.name }}" --build-number "${{ steps.android-version.outputs.number }}" --dart-define=FORMA_API_BASE_URL="$FORMA_PERSONAL_API_BASE_URL"
-
-      - name: Name personal APK
-        if: env.FORMA_PERSONAL_API_BASE_URL != ''
-        working-directory: packages/flutter_app
-        run: cp build/app/outputs/flutter-apk/app-release.apk "Forma-Android-Personal-${GITHUB_SHA::7}.apk"
-
-      - name: Verify APK output
-        working-directory: packages/flutter_app
-        run: |
-          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
-            test -s "Forma-Android-${GITHUB_REF_NAME}.apk"
-          else
-            test -s "Forma-Android-Universal.apk"
-          fi
-          file Forma-Android-*.apk
-          sha256sum Forma-Android-*.apk
-
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: forma-android-${{ github.sha }}
-          path: packages/flutter_app/Forma-Android-*.apk
-          if-no-files-found: error
-          retention-days: 30
-
-  publish-android-release:
-    name: Attach APK to GitHub Release
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    needs: build-android
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
-    steps:
-      - name: Download APK artifact
-        uses: actions/download-artifact@v8
-        with:
-          name: forma-android-${{ github.sha }}
-
-      - name: Remove previous rolling APK assets
-        if: github.ref == 'refs/heads/master'
-        uses: actions/github-script@v9
-        with:
-          script: |
-            const { owner, repo } = context.repo;
-            let release;
-            try {
-              ({ data: release } = await github.rest.repos.getReleaseByTag({
-                owner,
-                repo,
-                tag: 'android-latest',
-              }));
-            } catch (error) {
-              if (error.status === 404) return;
-              throw error;
-            }
-
-            for (const asset of release.assets) {
-              if (asset.name.endsWith('.apk')) {
-                await github.rest.repos.deleteReleaseAsset({
-                  owner,
-                  repo,
-                  asset_id: asset.id,
-                });
-              }
-            }
-
-      - name: Publish APK on GitHub Release
+      - name: Attach APK to version release
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: ${{ github.ref == 'refs/heads/master' && 'android-latest' || github.ref_name }}
-          name: ${{ github.ref == 'refs/heads/master' && 'Forma Android (latest)' || format('Forma {0}', github.ref_name) }}
-          prerelease: ${{ github.ref == 'refs/heads/master' }}
-          make_latest: false
-          body: "${{ startsWith(github.ref, 'refs/tags/v') && 'Mobile AI coach layout refinement and a faster release pipeline. Docker image and Android APK builds now run in parallel, without a GitHub Actions validation stage.' || '' }}"
-          overwrite_files: true
-          files: ${{ github.ref == 'refs/heads/master' && 'Forma-Android-Universal.apk' || format('Forma-Android-{0}.apk', github.ref_name) }}
+          tag_name: ${{ github.ref_name }}
+          name: Forma ${{ github.ref_name }}
+          make_latest: true
+          generate_release_notes: true
+          files: packages/flutter_app/Forma-Android-${{ github.ref_name }}.apk
           fail_on_unmatched_files: true
 
-  build-and-push:
-    # Docker and Android artifacts are built only for version-tag releases.
-    if: github.event_name != 'pull_request'
-    needs: verify-rust-backend
+  build-and-push-docker:
+    name: Build and push Rust server image
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -239,42 +105,19 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata (tags, labels)
-        id: meta
-        uses: docker/metadata-action@v6
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            # Commit SHA tag
-            type=sha,prefix=sha-,format=short
-            # Version semver tags
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            # Production latest tag on default branch
-            type=raw,value=latest,enable={{is_default_branch}}
-            # Nightly tag for feature branches (built only when new commits are pushed)
-            type=raw,value=nightly,enable=${{ startsWith(github.ref, 'refs/heads/feature/') }}
-            # Branch name tag (e.g. :feature-public-profiles-and-avatars)
-            type=ref,event=branch
-
-      - name: Build and push Docker image
+      - name: Build and push multi-architecture Rust server image
         uses: docker/build-push-action@v7
         with:
           context: .
+          file: Dockerfile
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ github.ref_name }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          platforms: linux/amd64,linux/arm64
-
-      - name: Verify published image
-        run: |
-          echo "Published image tags:"
-          echo "${{ steps.meta.outputs.tags }}"
-          echo ""
-          echo "Image digest: ${{ steps.meta.outputs.digest }}"
-          echo ""
-          echo "Pull with:"
-          echo "  docker pull ghcr.io/${{ env.IMAGE_NAME }}:nightly"
-          echo "  docker pull ghcr.io/${{ env.IMAGE_NAME }}:latest"

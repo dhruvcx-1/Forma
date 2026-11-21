@@ -826,47 +826,74 @@ class _BmiRangeBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final position = ((value - 15) / 25).clamp(0.0, 1.0).toDouble();
     return SizedBox(
-        height: 36,
-        child: LayoutBuilder(
-            builder: (context, box) =>
-                Stack(alignment: Alignment.centerLeft, children: [
-                  ClipRRect(
-                      borderRadius: BorderRadius.circular(99),
-                      child: Row(children: [
-                        for (final segment in [
-                          (0.14, const Color(0xff42a5f5)),
-                          (0.256, const Color(0xff24a777)),
-                          (0.20, const Color(0xffffb020)),
-                          (0.404, const Color(0xffd84a68)),
-                        ])
-                          Expanded(
-                              flex: (segment.$1 * 1000).round(),
-                              child: Container(height: 9, color: segment.$2)),
-                      ])),
-                  Positioned(
-                      left: (box.maxWidth - 12) * position,
-                      child: Container(
-                          width: 12,
-                          height: 20,
-                          decoration: BoxDecoration(
-                              color: Theme.of(context).colorScheme.onSurface,
-                              borderRadius: BorderRadius.circular(99),
-                              border: Border.all(
-                                  color: Theme.of(context).colorScheme.surface,
-                                  width: 2)))),
-                  const Positioned(
-                      left: 0,
-                      bottom: 0,
-                      child: Text('18.5', style: TextStyle(fontSize: 10))),
-                  const Positioned(
-                      left: 36,
-                      bottom: 0,
-                      child: Text('25', style: TextStyle(fontSize: 10))),
-                  const Positioned(
-                      right: 0,
-                      bottom: 0,
-                      child: Text('40+', style: TextStyle(fontSize: 10))),
-                ])));
+        height: 44,
+        child: LayoutBuilder(builder: (context, box) {
+          const startOfHealthyRange = .14;
+          const startOfOverweight = .396;
+          const labelWidth = 36.0;
+          final labelStyle = Theme.of(context).textTheme.labelSmall?.copyWith(
+              fontSize: 11,
+              height: 1.15,
+              color: Theme.of(context).colorScheme.onSurfaceVariant);
+
+          Widget thresholdLabel(String text, double fraction) {
+            final left = (box.maxWidth * fraction - labelWidth / 2)
+                .clamp(0.0, box.maxWidth - labelWidth);
+            return Positioned(
+                left: left,
+                top: 25,
+                width: labelWidth,
+                height: 14,
+                child: Text(text,
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    style: labelStyle));
+          }
+
+          return Stack(clipBehavior: Clip.none, children: [
+            Positioned(
+                left: 0,
+                right: 0,
+                top: 6,
+                height: 9,
+                child: ClipRRect(
+                    borderRadius: BorderRadius.circular(99),
+                    child: Row(children: [
+                      for (final segment in [
+                        (0.14, const Color(0xff42a5f5)),
+                        (0.256, const Color(0xff24a777)),
+                        (0.20, const Color(0xffffb020)),
+                        (0.404, const Color(0xffd84a68)),
+                      ])
+                        Expanded(
+                            flex: (segment.$1 * 1000).round(),
+                            child: ColoredBox(color: segment.$2)),
+                    ]))),
+            Positioned(
+                left: (box.maxWidth - 12) * position,
+                top: 0,
+                child: Container(
+                    width: 12,
+                    height: 21,
+                    decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.onSurface,
+                        borderRadius: BorderRadius.circular(99),
+                        border: Border.all(
+                            color: Theme.of(context).colorScheme.surface,
+                            width: 2)))),
+            thresholdLabel('18.5', startOfHealthyRange),
+            thresholdLabel('25', startOfOverweight),
+            Positioned(
+                right: 0,
+                top: 25,
+                width: labelWidth,
+                height: 14,
+                child: Text('40+',
+                    textAlign: TextAlign.right,
+                    maxLines: 1,
+                    style: labelStyle)),
+          ]);
+        }));
   }
 }
 

@@ -24,6 +24,7 @@ use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::{Value, json};
 use tower_http::cors::{AllowHeaders, AllowOrigin, CorsLayer};
+mod schema;
 
 type Db = Arc<Mutex<Connection>>;
 struct ApiJson<T>(T);
@@ -125,32 +126,6 @@ fn with_cookie(mut response: Response, value: String) -> Response {
 fn auth_or_response(app: &App, session: &Option<String>) -> Result<Profile, Response> {
     current_profile(app, session).ok_or_else(|| error(StatusCode::UNAUTHORIZED, "Unauthorized"))
 }
-fn schema_check(conn: &Connection) -> Result<(), String> {
-    let version: i64 = conn
-        .pragma_query_value(None, "user_version", |r| r.get(0))
-        .map_err(|e| e.to_string())?;
-    let profiles: i64 = conn
-        .query_row(
-            "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='profiles'",
-            [],
-            |r| r.get(0),
-        )
-        .map_err(|e| e.to_string())?;
-    let sessions: i64 = conn
-        .query_row(
-            "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='sessions'",
-            [],
-            |r| r.get(0),
-        )
-        .map_err(|e| e.to_string())?;
-    if version < 10 || profiles != 1 || sessions != 1 {
-        return Err(format!(
-            "Expected the latest existing Forma schema (user_version >= 10); found version {version}. Rust startup never creates or migrates the schema."
-        ));
-    }
-    Ok(())
-}
-
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct AuthInput {
@@ -4326,13 +4301,17 @@ fn fasting_widget_routes() -> Router<App> {
 
 #[tokio::main]
 async fn main() {
+    let initialize_database = env::args().any(|arg| arg == "--init-db");
     let production = env::var("NODE_ENV").unwrap_or_default() == "production";
-    if production && env::var("COOKIE_SECRET").unwrap_or_default().len() < 32 {
+    if !initialize_database
+        && production
+        && env::var("COOKIE_SECRET").unwrap_or_default().len() < 32
+    {
         eprintln!("COOKIE_SECRET must be at least 32 characters in production");
         std::process::exit(1);
     }
     let path = env::var("DATABASE_PATH").unwrap_or_else(|_| "./data/forma-rust-dev.db".into());
-    if production && !Path::new(&path).exists() {
+    if !initialize_database && production && !Path::new(&path).exists() {
         eprintln!("Refusing to create a production database at {path}");
         std::process::exit(1);
     }
@@ -4342,14 +4321,22 @@ async fn main() {
             std::process::exit(1)
         }
     }
-    let conn = match Connection::open(&path) {
+    let mut conn = match Connection::open(&path) {
         Ok(c) => c,
         Err(e) => {
             eprintln!("Cannot open SQLite database: {e}");
             std::process::exit(1)
         }
     };
-    if let Err(e) = schema_check(&conn) {
+    if initialize_database {
+        if let Err(e) = schema::initialize_empty_database(&mut conn) {
+            eprintln!("Database initialization failed: {e}");
+            std::process::exit(1)
+        }
+        println!("Database schema is ready at {path}");
+        return;
+    }
+    if let Err(e) = schema::verify_existing_schema(&conn) {
         eprintln!("Database compatibility check failed: {e}");
         std::process::exit(1)
     }
@@ -4357,7 +4344,7 @@ async fn main() {
         eprintln!("Cannot enable foreign keys: {e}");
         std::process::exit(1)
     }
-    // Existing TypeScript production runs in WAL mode. Preserve that concurrency mode.
+    // Keep SQLite in WAL mode for concurrent readers and writes.
     if let Err(e) = conn.pragma_update(None, "journal_mode", "WAL") {
         eprintln!("Cannot enable WAL: {e}");
         std::process::exit(1)

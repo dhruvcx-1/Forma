@@ -1,39 +1,40 @@
-# Flutter app architecture
+# Flutter and Rust application architecture
 
 ## Application layout
 
-- `packages/flutter_app` is the only user interface. It builds for Flutter Web and Android and uses Material 3.
-- `packages/backend` is the Fastify API and owns authentication, application rules, database access, and photo storage.
-- The Web build is served by Fastify from `packages/flutter_app/build/web`; Android talks to the same API. There is no React frontend or rollback bundle in the Docker image.
-- The root npm workspace contains the backend only. Flutter dependencies and commands are managed by Flutter from `packages/flutter_app`.
+- `packages/flutter_app` contains the Flutter and Material 3 user interface for
+  Web and Android.
+- `packages/backend-rust` contains the Axum API and SQLite data access layer.
+- The Docker image serves Flutter Web and the API from a single Rust process
+  and origin. Android connects to the same API.
 
 ## Data and upgrade boundary
 
-The API uses SQLite with WAL and foreign keys. `DATABASE_PATH` selects the database (the container default is `/app/data/body-tracker.db`); `PHOTOS_PATH` selects private uploaded photos (the container default is `/app/data/photos`). Docker persists both under `/app/data` in the `forma_data` volume. Frontend upgrades do not require schema migrations and must not change or delete this data.
+The production database is `/app/data/body-tracker.db`; uploaded photos are in
+`/app/data/photos`. Both live in the existing `forma_data` Docker volume. Back
+up this volume before upgrades and keep it mounted when replacing the image.
 
-Back up the database and complete photo directory before upgrades. Preserve the session cookie behavior and profile scoping in the API. The Web app should use the same origin as the API; Android uses a persistent app-private cookie jar and a self-host URL chosen on device unless a personal build has a default URL supplied at build time.
+The release schema is SQLite `user_version` 10. Compose runs an explicit
+initializer before the service: it creates schema 10 only for an empty new
+database, verifies a current database without changing it, and stops on an
+older or partially initialized database. The Rust API itself never silently
+migrates existing production data.
 
-## Flutter feature-to-API map
+## API feature map
 
 | Feature | Flutter implementation | API areas |
 |---|---|---|
-| First-run setup, login, registration | `lib/screens/auth_screen.dart`, `lib/screens/onboarding_screen.dart`, `lib/state/session_state.dart` | setup status, setup/register/login/logout/me, username availability |
-| Dashboard | `lib/screens/home_screen.dart` | weight, body composition, goals, nutrition, fasting |
-| Weight history and trends | `lib/screens/record_screens.dart` | weight list, stats, create/update/delete |
-| Measurement studio, history, and ratios | `lib/screens/record_screens.dart` | definitions, entries, batch logging, body composition |
-| Goals | `lib/screens/progress_screens.dart` | goal read/write and weight stats |
-| Nutrition and daily tracking | `lib/screens/progress_screens.dart` | plan recommendations, plan read/write, daily logs |
-| Fasting and share widget | `lib/screens/progress_screens.dart`, `lib/screens/account_screens.dart` | fasting sessions, history, widget token and public widget |
-| Progress photos, profile, settings | `lib/screens/account_screens.dart` | authenticated photo operations, profile, avatar, settings |
-| Data portability and administration | `lib/screens/account_screens.dart` | backup/export/import, registration policy, user administration |
-| Public progress profiles | `lib/screens/account_screens.dart` | public profile API and Flutter route aliases |
+| Setup, login, registration | `lib/screens/auth_screen.dart`, `lib/screens/onboarding_screen.dart`, `lib/state/session_state.dart` | Auth and profile |
+| Dashboard and weight | `lib/screens/home_screen.dart`, `lib/screens/record_screens.dart` | Weight, body composition, goals, nutrition, fasting |
+| Measurements | `lib/screens/record_screens.dart` | Definitions, entries, history, batch logging |
+| Goals and nutrition | `lib/screens/progress_screens.dart` | Goal and nutrition operations |
+| Fasting and share widget | `lib/screens/progress_screens.dart`, `lib/screens/account_screens.dart` | Fasting sessions and public widget |
+| Photos, profile, settings | `lib/screens/account_screens.dart` | Profile, photos, settings, backups, administration |
+| AI coach and reports | `lib/screens/ai_screen.dart` | Provider settings, chat memory, reports |
 
-## Local development
+## Local development and releases
 
-Start the backend and Flutter Web in separate terminals. See the root README for a disposable demo database workflow. Do not run the demo seeder against a database containing real user data: it resets and repopulates the `demo` account.
-
-For browser screenshots, sign into the seeded `demo` account (`demo` / `password123`). The seed data is synthetic. Capture documentation screenshots from the current Flutter interface only; the former React screenshots have been removed.
-
-## Deployment
-
-CI validates backend and Flutter, builds the Web bundle, produces a host-configurable Android APK, and publishes multi-architecture Docker images to GHCR. The Docker runtime serves the Flutter Web output and API from one origin. A personal Android APK can be built with `FORMA_API_BASE_URL`; do not use that option for the public APK.
+Use a disposable SQLite database for local development. See
+`packages/backend-rust/README.md` for the Rust startup commands. Release tags
+build and publish the Android APK and server Docker image in parallel; regular
+branch pushes do not run those release jobs.

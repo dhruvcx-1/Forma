@@ -1,24 +1,33 @@
 services:
+  forma-db-init:
+    image: ${FORMA_IMAGE:-ghcr.io/dhruvcx-1/forma:latest}
+    command: ["/usr/local/bin/forma-backend", "--init-db"]
+    restart: "no"
+    environment:
+      DATABASE_PATH: /app/data/body-tracker.db
+      PHOTOS_PATH: /app/data/photos
+    volumes:
+      - forma_data:/app/data
+
   forma:
-    # Published multi-architecture image; override FORMA_IMAGE to pin a version.
     image: ${FORMA_IMAGE:-ghcr.io/dhruvcx-1/forma:latest}
     pull_policy: always
     container_name: forma
     restart: unless-stopped
+    depends_on:
+      forma-db-init:
+        condition: service_completed_successfully
     environment:
       NODE_ENV: production
       PORT: "3001"
       EXTERNAL_PORT: "3001"
-      # Set COOKIE_SECRET in .env; do not commit the production signing secret.
       COOKIE_SECRET: ${COOKIE_SECRET:?Set COOKIE_SECRET in your .env file}
       ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-true}
       DATABASE_PATH: /app/data/body-tracker.db
       PHOTOS_PATH: /app/data/photos
       CORS_ORIGIN: ${PUBLIC_URL:-}
-      # Optional BYOK AI. Generate a stable base64 key with: openssl rand -base64 32
       FORMA_AI_ENCRYPTION_KEY: ${FORMA_AI_ENCRYPTION_KEY:-}
       FORMA_AI_ALLOW_HTTP_BASE_URL: ${FORMA_AI_ALLOW_HTTP_BASE_URL:-false}
-    # Direct host access for clients and API integration: http://HOST:3001/api
     ports:
       - "${EXTERNAL_PORT:-3001}:3001"
     expose:

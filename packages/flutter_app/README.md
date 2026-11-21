@@ -11,7 +11,15 @@ flutter pub get
 flutter run -d chrome --dart-define=FORMA_API_BASE_URL=http://localhost:3001
 ```
 
-Start the backend from the repository root with `npm run dev --workspace=packages/backend`. For an Android emulator, use `flutter run --dart-define=FORMA_API_BASE_URL=http://10.0.2.2:3001`. For a physical device, either enter a reachable HTTPS server URL on first launch or pass the computer's LAN URL with `--dart-define` (the device must be able to reach that address). The Android debug manifest permits local HTTP for development; remote release servers should use HTTPS.
+Start the Rust backend from the repository root in a second terminal:
+
+```powershell
+$env:DATABASE_PATH = (Join-Path $PWD 'packages/backend-rust/data/rust-dev.db')
+cargo run --locked --manifest-path packages/backend-rust/Cargo.toml -- --init-db
+cargo run --locked --manifest-path packages/backend-rust/Cargo.toml
+```
+
+For an Android emulator, use `flutter run --dart-define=FORMA_API_BASE_URL=http://10.0.2.2:3001`. For a physical device, either enter a reachable HTTPS server URL on first launch or pass the computer's LAN URL with `--dart-define` (the device must be able to reach that address). The Android debug manifest permits local HTTP for development; remote release servers should use HTTPS.
 
 ## Build APKs
 
@@ -46,10 +54,8 @@ The Web app uses the current origin by default, so a self-hosted Docker deployme
 
 ## GitHub Actions artifacts and releases
 
-The Android workflow builds a host-configurable APK without `FORMA_API_BASE_URL` and uploads it as a workflow artifact. Push a semantic version tag such as `v1.2.3` to create a versioned GitHub Release with `Forma-Android-v1.2.3.apk`. Master branch builds are attached to the rolling `android-latest` prerelease. Obtainium users should track the repository's stable versioned releases and select assets named `Forma-Android-v*.apk`. For instructions and the required signing-key setup, see the [root README](../../README.md#configure-versioned-apk-releases).
+The Android workflow runs only for version tags. A tag such as `v1.2.3` creates a GitHub Release with `Forma-Android-v1.2.3.apk`. Obtainium users should track the repository's stable versioned releases and select assets named `Forma-Android-v*.apk`. For instructions and the required signing-key setup, see the [root README](../../README.md#configure-versioned-apk-releases).
 
 Version-tag releases require a persistent Android keystore configured as the `FORMA_ANDROID_KEYSTORE_BASE64`, `FORMA_ANDROID_STORE_PASSWORD`, `FORMA_ANDROID_KEY_ALIAS`, and `FORMA_ANDROID_KEY_PASSWORD` Actions secrets. Back up the keystore: losing it prevents publishing compatible updates. The first release signed with this key may require uninstalling an older APK if it used a different signing certificate.
 
-To also create a private-use APK in Actions, add a repository Actions secret named `FORMA_PERSONAL_API_BASE_URL`; the workflow will build a second, separately named artifact with that URL. The private APK is not attached to public releases. Keep the secret limited to your own deployment and do not expose it in logs or documentation.
-
-The workflow also builds the Flutter Web app into the Docker image and publishes the image to GitHub Container Registry. Local Android APK builds use Flutter's debug key for direct testing and sideloading; Play Store distribution needs a separate private Play signing setup.
+The same version tag also publishes the multi-architecture Rust server image to GitHub Container Registry. The APK and Docker image jobs run in parallel. Local Android APK builds use Flutter's debug key for direct testing and sideloading; Play Store distribution needs a separate private Play signing setup.
