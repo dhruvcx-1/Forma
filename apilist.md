@@ -1,9 +1,8 @@
 # Forma API Reference
 
-This document lists the existing Forma HTTP API. The TypeScript backend is the
-source of the current client contract; Rust is being checked against it. Paths
-and payloads below describe the API at `/api` and are intended to remain
-client-compatible during the backend migration.
+This document describes the Forma HTTP API implemented by the Rust backend.
+Paths and payloads below describe the API at `/api` and the contract used by
+the Flutter clients.
 
 ## General
 
@@ -173,6 +172,6 @@ stored encrypted and are never returned in API responses.
 - Successful delete operations generally return `{ ok: true }` or
   `{ success: true }`, as described by each route.
 - This inventory does not authorize switching production traffic. See
-  [Rust migration compatibility status](packages/backend-rust/COMPATIBILITY.md)
+  [Rust backend and SQLite compatibility](packages/backend-rust/COMPATIBILITY.md)
   for database safeguards, current verification, remaining parity work, and
   rollback guidance.
