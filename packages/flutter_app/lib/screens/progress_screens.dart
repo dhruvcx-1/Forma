@@ -466,6 +466,33 @@ class _NutritionScreenState extends State<NutritionScreen> {
       customFields.putIfAbsent(
           key, () => TextEditingController(text: initial?.toString() ?? ''));
 
+  InputDecoration _nutritionInput(
+    BuildContext context,
+    String label, {
+    String? suffix,
+    IconData? icon,
+    bool alignLabelWithHint = false,
+  }) {
+    final colors = Theme.of(context).colorScheme;
+    final outline = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(14),
+      borderSide: BorderSide(color: colors.outlineVariant),
+    );
+    return InputDecoration(
+      labelText: label,
+      suffixText: suffix,
+      prefixIcon: icon == null ? null : Icon(icon),
+      alignLabelWithHint: alignLabelWithHint,
+      filled: true,
+      fillColor: colors.surfaceContainerLow,
+      border: outline,
+      enabledBorder: outline,
+      focusedBorder: outline.copyWith(
+        borderSide: BorderSide(color: colors.primary, width: 1.6),
+      ),
+    );
+  }
+
   Future<void> _saveLog() async {
     try {
       await widget.api.post('/nutrition/logs', {
@@ -530,314 +557,378 @@ class _NutritionScreenState extends State<NutritionScreen> {
             ? plan
             : calc;
         final log = asJson(d.$2['log']);
-        return ListView(padding: const EdgeInsets.all(22), children: [
-          PageHeading('Nutrition',
-              subtitle: 'Personalized energy and macronutrient targets.'),
-          MetricGrid(children: [
-            MetricTile(
-                label: 'Daily energy',
-                value:
-                    '${numVal(active['daily_calories'] ?? active['dailyCalories']).round()} kcal',
-                detail:
-                    'BMR ${numVal(calc['bmr']).round()} · TDEE ${numVal(calc['tdee']).round()} kcal',
-                icon: Icons.local_fire_department_outlined),
-            MetricTile(
-                label: 'Protein',
-                value:
-                    '${numVal(active['protein_grams'] ?? active['proteinGrams']).round()} g',
-                detail:
-                    '${numVal(active['protein_pct'] ?? active['proteinPct']).round()}% of target',
-                icon: Icons.fitness_center),
-            MetricTile(
-                label: 'Carbohydrates',
-                value:
-                    '${numVal(active['carbs_grams'] ?? active['carbsGrams']).round()} g',
-                detail:
-                    '${numVal(active['carbs_pct'] ?? active['carbsPct']).round()}% of target',
-                icon: Icons.grain),
-            MetricTile(
-                label: 'Fat',
-                value:
-                    '${numVal(active['fat_grams'] ?? active['fatGrams']).round()} g',
-                detail:
-                    '${numVal(active['fat_pct'] ?? active['fatPct']).round()}% of target',
-                icon: Icons.opacity_outlined)
-          ]),
-          const SizedBox(height: 14),
-          SectionCard(
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                Row(children: [
-                  Icon(Icons.insights_outlined,
-                      color: Theme.of(context).colorScheme.primary),
-                  const SizedBox(width: 9),
-                  Expanded(
-                      child: Text('Today’s progress',
-                          style: Theme.of(context).textTheme.titleLarge)),
-                  Text(today(), style: Theme.of(context).textTheme.bodySmall)
+        return LayoutBuilder(builder: (context, viewport) {
+          final horizontal = viewport.maxWidth < 600
+              ? 16.0
+              : viewport.maxWidth > 1180
+                  ? (viewport.maxWidth - 1180) / 2
+                  : 24.0;
+          return ListView(
+              padding: EdgeInsets.fromLTRB(horizontal, 22, horizontal, 28),
+              children: [
+                PageHeading('Nutrition',
+                    subtitle: 'Personalized energy and macronutrient targets.'),
+                MetricGrid(children: [
+                  MetricTile(
+                      label: 'Daily energy',
+                      value:
+                          '${numVal(active['daily_calories'] ?? active['dailyCalories']).round()} kcal',
+                      detail:
+                          'BMR ${numVal(calc['bmr']).round()} · TDEE ${numVal(calc['tdee']).round()} kcal',
+                      icon: Icons.local_fire_department_outlined),
+                  MetricTile(
+                      label: 'Protein',
+                      value:
+                          '${numVal(active['protein_grams'] ?? active['proteinGrams']).round()} g',
+                      detail:
+                          '${numVal(active['protein_pct'] ?? active['proteinPct']).round()}% of target',
+                      icon: Icons.fitness_center),
+                  MetricTile(
+                      label: 'Carbohydrates',
+                      value:
+                          '${numVal(active['carbs_grams'] ?? active['carbsGrams']).round()} g',
+                      detail:
+                          '${numVal(active['carbs_pct'] ?? active['carbsPct']).round()}% of target',
+                      icon: Icons.grain),
+                  MetricTile(
+                      label: 'Fat',
+                      value:
+                          '${numVal(active['fat_grams'] ?? active['fatGrams']).round()} g',
+                      detail:
+                          '${numVal(active['fat_pct'] ?? active['fatPct']).round()}% of target',
+                      icon: Icons.opacity_outlined)
                 ]),
-                const SizedBox(height: 16),
-                LayoutBuilder(builder: (context, box) {
-                  final columns = box.maxWidth >= 760 ? 2 : 1;
-                  final width = (box.maxWidth - (columns - 1) * 14) / columns;
-                  final macros = <(String, String, String, IconData)>[
-                    (
-                      'Calories',
-                      'calories',
-                      'daily_calories',
-                      Icons.local_fire_department_outlined
-                    ),
-                    (
-                      'Protein',
-                      'protein_grams',
-                      'protein_grams',
-                      Icons.fitness_center
-                    ),
-                    (
-                      'Carbohydrates',
-                      'carbs_grams',
-                      'carbs_grams',
-                      Icons.grain
-                    ),
-                    ('Fat', 'fat_grams', 'fat_grams', Icons.opacity_outlined),
-                  ];
-                  return Wrap(spacing: 14, runSpacing: 14, children: [
-                    for (final item in macros)
-                      SizedBox(
-                          width: width,
-                          child: Builder(builder: (context) {
-                            final consumed = numVal(log[item.$2]);
-                            final goal = numVal(active[item.$3] ??
-                                active[{
-                                  'daily_calories': 'dailyCalories',
-                                  'protein_grams': 'proteinGrams',
-                                  'carbs_grams': 'carbsGrams',
-                                  'fat_grams': 'fatGrams',
-                                }[item.$3]]);
-                            final ratio = goal <= 0
-                                ? 0.0
-                                : (consumed / goal).clamp(0.0, 1.0).toDouble();
-                            return Container(
-                                padding: const EdgeInsets.all(14),
-                                decoration: BoxDecoration(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .surfaceContainerLow,
-                                    borderRadius: BorderRadius.circular(16)),
-                                child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Row(children: [
-                                        Icon(item.$4,
-                                            size: 18,
-                                            color: Theme.of(context)
-                                                .colorScheme
-                                                .primary),
-                                        const SizedBox(width: 8),
-                                        Expanded(
-                                            child: Text(item.$1,
-                                                style: Theme.of(context)
-                                                    .textTheme
-                                                    .titleSmall
-                                                    ?.copyWith(
-                                                        fontWeight:
-                                                            FontWeight.w700))),
-                                        Text(
-                                            '${consumed.round()} / ${goal.round()} ${item.$2 == 'calories' ? 'kcal' : 'g'}',
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .labelMedium)
-                                      ]),
-                                      const SizedBox(height: 10),
-                                      ClipRRect(
-                                          borderRadius:
-                                              BorderRadius.circular(99),
-                                          child: LinearProgressIndicator(
-                                              value: ratio, minHeight: 8)),
-                                      const SizedBox(height: 5),
-                                      Text(
-                                          goal > 0
-                                              ? '${(ratio * 100).round()}% of daily target'
-                                              : 'Set a target to track progress',
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .bodySmall)
-                                    ]));
-                          }))
-                  ]);
-                })
-              ])),
-          const SizedBox(height: 14),
-          if (diet == 'custom')
-            SectionCard(
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                  Text('Custom daily targets',
-                      style: Theme.of(context).textTheme.titleLarge),
-                  const SizedBox(height: 8),
-                  for (final item in [
-                    ('daily_calories', 'Calories (kcal)', 'dailyCalories'),
-                    ('protein_grams', 'Protein (g)', 'proteinGrams'),
-                    ('carbs_grams', 'Carbohydrates (g)', 'carbsGrams'),
-                    ('fat_grams', 'Fat (g)', 'fatGrams')
-                  ])
-                    Padding(
-                        padding: const EdgeInsets.only(bottom: 9),
-                        child: TextField(
-                            controller: _customField(
-                                item.$1, plan[item.$1] ?? calc[item.$3]),
-                            keyboardType: TextInputType.number,
-                            decoration: InputDecoration(labelText: item.$2))),
-                ])),
-          const SizedBox(height: 14),
-          SectionCard(
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                Text('Plan preferences',
-                    style: Theme.of(context).textTheme.titleLarge),
-                const SizedBox(height: 10),
-                Wrap(spacing: 12, runSpacing: 10, children: [
-                  SizedBox(
-                      width: 260,
-                      child: DropdownButtonFormField<String>(
-                          initialValue: diet,
-                          decoration: const InputDecoration(
-                              labelText: 'Diet archetype'),
-                          items: const [
-                            (
-                              'high_protein_low_carb',
-                              'High protein / lower carb'
-                            ),
-                            ('keto', 'Keto'),
-                            ('balanced', 'Balanced'),
-                            ('mediterranean', 'Mediterranean'),
-                            ('carnivore', 'Carnivore'),
-                            ('custom', 'Custom')
-                          ]
-                              .map((e) => DropdownMenuItem(
-                                  value: e.$1, child: Text(e.$2)))
-                              .toList(),
-                          onChanged: (v) {
-                            if (v != null) {
-                              setState(() => diet = v);
-                              _previewPlan();
-                            }
-                          })),
-                  SizedBox(
-                      width: 240,
-                      child: DropdownButtonFormField<String>(
-                          initialValue: activity,
-                          decoration: const InputDecoration(
-                              labelText: 'Activity level'),
-                          items: const [
-                            ('sedentary', 'Sedentary'),
-                            ('light', 'Light'),
-                            ('moderate', 'Moderate'),
-                            ('very_active', 'Very active'),
-                            ('extra_active', 'Extra active')
-                          ]
-                              .map((e) => DropdownMenuItem(
-                                  value: e.$1, child: Text(e.$2)))
-                              .toList(),
-                          onChanged: (v) {
-                            if (v != null) {
-                              setState(() => activity = v);
-                              _previewPlan();
-                            }
-                          })),
-                  FilledButton(
-                      onPressed: () => _savePlan(calc),
-                      child: const Text('Save targets'))
-                ]),
-                const SizedBox(height: 8),
-                Text(
-                    'Estimated BMR ${numVal(calc['bmr']).round()} kcal · TDEE ${numVal(calc['tdee']).round()} kcal',
-                    style: Theme.of(context).textTheme.bodySmall)
-              ])),
-          const SizedBox(height: 14),
-          SectionCard(
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                Text('Today’s intake · ${today()}',
-                    style: Theme.of(context).textTheme.titleLarge),
-                const SizedBox(height: 6),
-                Text(
-                    'Record your totals for the day. You can update these values anytime.',
-                    style: Theme.of(context).textTheme.bodySmall),
                 const SizedBox(height: 14),
-                LayoutBuilder(builder: (context, box) {
-                  final columns = box.maxWidth >= 900
-                      ? 4
-                      : box.maxWidth >= 560
-                          ? 2
-                          : 1;
-                  final width = (box.maxWidth - (columns - 1) * 12) / columns;
-                  return Wrap(spacing: 12, runSpacing: 12, children: [
-                    for (final f in [
-                      ('calories', 'Calories', 'kcal'),
-                      ('protein_grams', 'Protein', 'g'),
-                      ('carbs_grams', 'Carbohydrates', 'g'),
-                      ('fat_grams', 'Fat', 'g')
-                    ])
-                      SizedBox(
-                          width: width,
-                          child: TextField(
-                              controller: _field(f.$1, log[f.$1]),
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                      decimal: true),
-                              decoration: InputDecoration(
-                                  labelText: f.$2, suffixText: f.$3)))
-                  ]);
-                }),
-                const SizedBox(height: 12),
-                TextField(
-                    controller: _field('notes', log['notes']),
-                    minLines: 2,
-                    maxLines: 4,
-                    decoration: const InputDecoration(
-                        labelText: 'Notes', alignLabelWithHint: true)),
-                const SizedBox(height: 12),
-                FilledButton(
-                    onPressed: _saveLog,
-                    child: const Text('Save today’s intake'))
-              ])),
-          const SizedBox(height: 14),
-          FutureBuilder<Json>(
-              future: widget.api.getMap(
-                  '/nutrition/logs?from=${DateTime.now().subtract(const Duration(days: 30)).toIso8601String().substring(0, 10)}&to=${today()}'),
-              builder: (context, snapshot) {
-                if (!snapshot.hasData) return const SizedBox.shrink();
-                final logs = asList(snapshot.data!['logs']);
-                return SectionCard(
+                SectionCard(
                     child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                      Text('Recent daily logs',
-                          style: Theme.of(context).textTheme.titleLarge),
-                      if (logs.isEmpty)
-                        const Padding(
-                            padding: EdgeInsets.only(top: 10),
-                            child: Text(
-                                'Your saved nutrition days will appear here.')),
-                      for (final raw in logs.take(12))
-                        Builder(builder: (context) {
-                          final row = asJson(raw);
-                          return ListTile(
-                              contentPadding: EdgeInsets.zero,
-                              title: Text(
-                                  '${row['date']} · ${numVal(row['calories']).round()} kcal'),
-                              subtitle: Text(
-                                  'Protein ${numVal(row['protein_grams']).round()} g · Carbs ${numVal(row['carbs_grams']).round()} g · Fat ${numVal(row['fat_grams']).round()} g'));
+                      Row(children: [
+                        Icon(Icons.insights_outlined,
+                            color: Theme.of(context).colorScheme.primary),
+                        const SizedBox(width: 9),
+                        Expanded(
+                            child: Text('Today’s progress',
+                                style: Theme.of(context).textTheme.titleLarge)),
+                        Text(today(),
+                            style: Theme.of(context).textTheme.bodySmall)
+                      ]),
+                      const SizedBox(height: 16),
+                      LayoutBuilder(builder: (context, box) {
+                        final columns = box.maxWidth >= 760 ? 2 : 1;
+                        final width =
+                            (box.maxWidth - (columns - 1) * 14) / columns;
+                        final macros = <(String, String, String, IconData)>[
+                          (
+                            'Calories',
+                            'calories',
+                            'daily_calories',
+                            Icons.local_fire_department_outlined
+                          ),
+                          (
+                            'Protein',
+                            'protein_grams',
+                            'protein_grams',
+                            Icons.fitness_center
+                          ),
+                          (
+                            'Carbohydrates',
+                            'carbs_grams',
+                            'carbs_grams',
+                            Icons.grain
+                          ),
+                          (
+                            'Fat',
+                            'fat_grams',
+                            'fat_grams',
+                            Icons.opacity_outlined
+                          ),
+                        ];
+                        return Wrap(spacing: 14, runSpacing: 14, children: [
+                          for (final item in macros)
+                            SizedBox(
+                                width: width,
+                                child: Builder(builder: (context) {
+                                  final consumed = numVal(log[item.$2]);
+                                  final goal = numVal(active[item.$3] ??
+                                      active[{
+                                        'daily_calories': 'dailyCalories',
+                                        'protein_grams': 'proteinGrams',
+                                        'carbs_grams': 'carbsGrams',
+                                        'fat_grams': 'fatGrams',
+                                      }[item.$3]]);
+                                  final ratio = goal <= 0
+                                      ? 0.0
+                                      : (consumed / goal)
+                                          .clamp(0.0, 1.0)
+                                          .toDouble();
+                                  return Container(
+                                      padding: const EdgeInsets.all(14),
+                                      decoration: BoxDecoration(
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .surfaceContainerLow,
+                                          borderRadius:
+                                              BorderRadius.circular(16)),
+                                      child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Row(children: [
+                                              Icon(item.$4,
+                                                  size: 18,
+                                                  color: Theme.of(context)
+                                                      .colorScheme
+                                                      .primary),
+                                              const SizedBox(width: 8),
+                                              Expanded(
+                                                  child: Text(item.$1,
+                                                      style: Theme.of(context)
+                                                          .textTheme
+                                                          .titleSmall
+                                                          ?.copyWith(
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w700))),
+                                              Text(
+                                                  '${consumed.round()} / ${goal.round()} ${item.$2 == 'calories' ? 'kcal' : 'g'}',
+                                                  style: Theme.of(context)
+                                                      .textTheme
+                                                      .labelMedium)
+                                            ]),
+                                            const SizedBox(height: 10),
+                                            ClipRRect(
+                                                borderRadius:
+                                                    BorderRadius.circular(99),
+                                                child: LinearProgressIndicator(
+                                                    value: ratio,
+                                                    minHeight: 8)),
+                                            const SizedBox(height: 5),
+                                            Text(
+                                                goal > 0
+                                                    ? '${(ratio * 100).round()}% of daily target'
+                                                    : 'Set a target to track progress',
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .bodySmall)
+                                          ]));
+                                }))
+                        ]);
+                      })
+                    ])),
+                const SizedBox(height: 14),
+                if (diet == 'custom')
+                  SectionCard(
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                        Text('Custom daily targets',
+                            style: Theme.of(context).textTheme.titleLarge),
+                        const SizedBox(height: 14),
+                        LayoutBuilder(builder: (context, box) {
+                          final columns = box.maxWidth >= 700 ? 2 : 1;
+                          final width =
+                              (box.maxWidth - 12 * (columns - 1)) / columns;
+                          return Wrap(spacing: 12, runSpacing: 12, children: [
+                            for (final item in [
+                              (
+                                'daily_calories',
+                                'Calories (kcal)',
+                                'dailyCalories',
+                                Icons.local_fire_department_outlined
+                              ),
+                              (
+                                'protein_grams',
+                                'Protein (g)',
+                                'proteinGrams',
+                                Icons.fitness_center
+                              ),
+                              (
+                                'carbs_grams',
+                                'Carbohydrates (g)',
+                                'carbsGrams',
+                                Icons.grain
+                              ),
+                              (
+                                'fat_grams',
+                                'Fat (g)',
+                                'fatGrams',
+                                Icons.opacity_outlined
+                              ),
+                            ])
+                              SizedBox(
+                                width: width,
+                                child: TextField(
+                                  controller: _customField(
+                                      item.$1, plan[item.$1] ?? calc[item.$3]),
+                                  keyboardType:
+                                      const TextInputType.numberWithOptions(
+                                          decimal: true),
+                                  decoration: _nutritionInput(context, item.$2,
+                                      icon: item.$4),
+                                ),
+                              ),
+                          ]);
                         }),
-                    ]));
-              }),
-        ]);
+                      ])),
+                const SizedBox(height: 14),
+                SectionCard(
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                      Text('Plan preferences',
+                          style: Theme.of(context).textTheme.titleLarge),
+                      const SizedBox(height: 10),
+                      Wrap(spacing: 12, runSpacing: 10, children: [
+                        SizedBox(
+                            width: 260,
+                            child: DropdownButtonFormField<String>(
+                                initialValue: diet,
+                                decoration:
+                                    _nutritionInput(context, 'Diet archetype'),
+                                items: const [
+                                  (
+                                    'high_protein_low_carb',
+                                    'High protein / lower carb'
+                                  ),
+                                  ('keto', 'Keto'),
+                                  ('balanced', 'Balanced'),
+                                  ('mediterranean', 'Mediterranean'),
+                                  ('carnivore', 'Carnivore'),
+                                  ('custom', 'Custom')
+                                ]
+                                    .map((e) => DropdownMenuItem(
+                                        value: e.$1, child: Text(e.$2)))
+                                    .toList(),
+                                onChanged: (v) {
+                                  if (v != null) {
+                                    setState(() => diet = v);
+                                    _previewPlan();
+                                  }
+                                })),
+                        SizedBox(
+                            width: 240,
+                            child: DropdownButtonFormField<String>(
+                                initialValue: activity,
+                                decoration:
+                                    _nutritionInput(context, 'Activity level'),
+                                items: const [
+                                  ('sedentary', 'Sedentary'),
+                                  ('light', 'Light'),
+                                  ('moderate', 'Moderate'),
+                                  ('very_active', 'Very active'),
+                                  ('extra_active', 'Extra active')
+                                ]
+                                    .map((e) => DropdownMenuItem(
+                                        value: e.$1, child: Text(e.$2)))
+                                    .toList(),
+                                onChanged: (v) {
+                                  if (v != null) {
+                                    setState(() => activity = v);
+                                    _previewPlan();
+                                  }
+                                })),
+                        FilledButton(
+                            onPressed: () => _savePlan(calc),
+                            child: const Text('Save targets'))
+                      ]),
+                      const SizedBox(height: 8),
+                      Text(
+                          'Estimated BMR ${numVal(calc['bmr']).round()} kcal · TDEE ${numVal(calc['tdee']).round()} kcal',
+                          style: Theme.of(context).textTheme.bodySmall)
+                    ])),
+                const SizedBox(height: 14),
+                SectionCard(
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                      Text('Today’s intake · ${today()}',
+                          style: Theme.of(context).textTheme.titleLarge),
+                      const SizedBox(height: 6),
+                      Text(
+                          'Record your totals for the day. You can update these values anytime.',
+                          style: Theme.of(context).textTheme.bodySmall),
+                      const SizedBox(height: 14),
+                      LayoutBuilder(builder: (context, box) {
+                        final columns = box.maxWidth >= 900
+                            ? 4
+                            : box.maxWidth >= 560
+                                ? 2
+                                : 1;
+                        final width =
+                            (box.maxWidth - (columns - 1) * 12) / columns;
+                        return Wrap(spacing: 12, runSpacing: 12, children: [
+                          for (final f in [
+                            (
+                              'calories',
+                              'Calories',
+                              'kcal',
+                              Icons.local_fire_department_outlined
+                            ),
+                            (
+                              'protein_grams',
+                              'Protein',
+                              'g',
+                              Icons.fitness_center
+                            ),
+                            ('carbs_grams', 'Carbohydrates', 'g', Icons.grain),
+                            ('fat_grams', 'Fat', 'g', Icons.opacity_outlined),
+                          ])
+                            SizedBox(
+                                width: width,
+                                child: TextField(
+                                    controller: _field(f.$1, log[f.$1]),
+                                    keyboardType:
+                                        const TextInputType.numberWithOptions(
+                                            decimal: true),
+                                    decoration: _nutritionInput(context, f.$2,
+                                        suffix: f.$3, icon: f.$4)))
+                        ]);
+                      }),
+                      const SizedBox(height: 12),
+                      TextField(
+                          controller: _field('notes', log['notes']),
+                          minLines: 2,
+                          maxLines: 4,
+                          decoration: _nutritionInput(context, 'Notes',
+                              alignLabelWithHint: true)),
+                      const SizedBox(height: 12),
+                      FilledButton(
+                          onPressed: _saveLog,
+                          child: const Text('Save today’s intake'))
+                    ])),
+                const SizedBox(height: 14),
+                FutureBuilder<Json>(
+                    future: widget.api.getMap(
+                        '/nutrition/logs?from=${DateTime.now().subtract(const Duration(days: 30)).toIso8601String().substring(0, 10)}&to=${today()}'),
+                    builder: (context, snapshot) {
+                      if (!snapshot.hasData) return const SizedBox.shrink();
+                      final logs = asList(snapshot.data!['logs']);
+                      return SectionCard(
+                          child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                            Text('Recent daily logs',
+                                style: Theme.of(context).textTheme.titleLarge),
+                            if (logs.isEmpty)
+                              const Padding(
+                                  padding: EdgeInsets.only(top: 10),
+                                  child: Text(
+                                      'Your saved nutrition days will appear here.')),
+                            for (final raw in logs.take(12))
+                              Builder(builder: (context) {
+                                final row = asJson(raw);
+                                return ListTile(
+                                    contentPadding: EdgeInsets.zero,
+                                    title: Text(
+                                        '${row['date']} · ${numVal(row['calories']).round()} kcal'),
+                                    subtitle: Text(
+                                        'Protein ${numVal(row['protein_grams']).round()} g · Carbs ${numVal(row['carbs_grams']).round()} g · Fat ${numVal(row['fat_grams']).round()} g'));
+                              }),
+                          ]));
+                    }),
+              ]);
+        });
       });
 }
 
@@ -1463,10 +1554,13 @@ class _FastingScreenState extends State<FastingScreen> {
                           return const LinearProgressIndicator();
                         }
                         final token = str(snapshot.data!['token'], '');
-                        final origin = Uri.parse(widget.api.dio.options.baseUrl)
-                            .replace(path: '')
+                        final link = Uri.base
+                            .replace(
+                              path: '/fasting/widget',
+                              queryParameters: {'token': token},
+                            )
+                            .removeFragment()
                             .toString();
-                        final link = '$origin/fasting/widget?token=$token';
                         return Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -1530,8 +1624,10 @@ class _FastingScreenState extends State<FastingScreen> {
                                         await widget.api.postDynamic(
                                             '/fasting/widget-token/regenerate');
                                         if (context.mounted) {
-                                          setState(() => _token = widget.api
-                                              .getMap('/fasting/widget-token'));
+                                          setState(() {
+                                            _token = widget.api.getMap(
+                                                '/fasting/widget-token');
+                                          });
                                         }
                                       } catch (e) {
                                         if (context.mounted) {

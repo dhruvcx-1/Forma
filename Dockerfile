@@ -1,28 +1,10 @@
-# syntax=docker/dockerfile:1
-
-# ============================================================
-# Stage 1: Build backend
-# ============================================================
-FROM node:24-alpine AS backend-builder
-
+FROM rust:1-bookworm AS rust-builder
 WORKDIR /build
+COPY packages/backend-rust/Cargo.toml packages/backend-rust/Cargo.lock ./packages/backend-rust/
+COPY packages/backend-rust/src ./packages/backend-rust/src
+RUN cargo build --release --locked --manifest-path packages/backend-rust/Cargo.toml
 
-COPY package.json package-lock.json* ./
-COPY packages/backend/package.json ./packages/backend/
-RUN npm ci --ignore-scripts
-
-COPY packages/backend ./packages/backend
-
-WORKDIR /build/packages/backend
-RUN npm run build
-
-# ============================================================
-# Stage 2: Build the shared Flutter Web frontend
-# ============================================================
-# Flutter Web output is architecture-independent, so build it on BuildKit's
-# native build platform and copy the static bundle into each runtime image.
-FROM --platform=$BUILDPLATFORM node:24-bookworm-slim AS flutter-web-builder
-
+FROM --platform=$BUILDPLATFORM debian:bookworm-slim AS flutter-web-builder
 ARG FLUTTER_VERSION=3.47.9
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates curl git unzip xz-utils zip libglu1-mesa \
@@ -31,50 +13,27 @@ RUN curl -fsSL "https://storage.googleapis.com/flutter_infra_release/releases/st
     | tar -xJ -C /opt
 ENV PATH="/opt/flutter/bin:${PATH}"
 RUN git config --global --add safe.directory /opt/flutter
-
 WORKDIR /build/packages/flutter_app
 COPY packages/flutter_app/pubspec.yaml packages/flutter_app/pubspec.lock ./
-RUN flutter pub get
+RUN flutter pub get --enforce-lockfile
 COPY packages/flutter_app ./
 RUN flutter build web --release
 
-# ============================================================
-# Stage 3: Production runtime
-# ============================================================
-FROM node:24-alpine AS runtime
-
-# Security: non-root user
-RUN addgroup -S forma && adduser -S forma -G forma
-
+FROM debian:bookworm-slim AS runtime
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates libgcc-s1 wget \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /app/data/photos \
+    && chown -R 100:100 /app/data
 WORKDIR /app
-
-# Install production backend deps only
-COPY package.json package-lock.json* ./
-COPY packages/backend/package.json ./packages/backend/
-RUN npm ci --omit=dev --ignore-scripts --workspace=packages/backend
-
-# Copy built artifacts
-COPY --from=backend-builder /build/packages/backend/dist ./packages/backend/dist
+COPY --from=rust-builder /build/packages/backend-rust/target/release/forma-backend /usr/local/bin/forma-backend
 COPY --from=flutter-web-builder /build/packages/flutter_app/build/web ./packages/flutter_app/build/web
-
-# Create data directories with correct ownership
-RUN mkdir -p /app/data/photos && chown -R forma:forma /app/data
-
-# Switch to non-root
-USER forma
-
-# Persistent data volumes
+USER 100:100
 VOLUME ["/app/data"]
-
 EXPOSE 3001
-
-# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
   CMD wget -qO- http://127.0.0.1:3001/api/health || exit 1
-
 ENV NODE_ENV=production \
     PORT=3001 \
     DATABASE_PATH=/app/data/body-tracker.db \
     PHOTOS_PATH=/app/data/photos
-
-CMD ["node", "packages/backend/dist/index.js"]
+CMD ["/usr/local/bin/forma-backend"]

@@ -1,4 +1,6 @@
 node_modules/
+target/
+packages/backend-rust/data/
 dist/
 packages/flutter_app/build/
 build-and-push-ghcr.bat

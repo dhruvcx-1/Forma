@@ -13,7 +13,7 @@ Just you, your progress, and a server you control.
 [![Build and publish](https://github.com/dhruvcx-1/Forma/actions/workflows/publish.yml/badge.svg)](https://github.com/dhruvcx-1/Forma/actions/workflows/publish.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Flutter](https://img.shields.io/badge/Flutter-Material%203-02569B?logo=flutter)](https://flutter.dev)
-[![Node.js](https://img.shields.io/badge/Node.js-24_LTS-339933?logo=node.js)](https://nodejs.org)
+[![Rust](https://img.shields.io/badge/Rust-stable-000000?logo=rust)](https://www.rust-lang.org)
 
 ---
 
@@ -81,7 +81,7 @@ When a user requests a report or coach reply, Forma sends relevant health record
 
 Want to get Forma running? All you need is Docker.
 
-The published container includes both the Node.js API and the Flutter Web application. Your SQLite database and uploaded photos are stored in `/app/data`.
+The published Rust server container includes the API and Flutter Web application. Your SQLite database and uploaded photos are stored in `/app/data`.
 
 ### Option 1: Run with Docker
 
@@ -91,12 +91,17 @@ The quickest way to get started:
 # Create persistent storage
 docker volume create forma_data
 
+# Initialize a new, empty database (safe to repeat for the current schema)
+docker run --rm \
+  -e DATABASE_PATH=/app/data/body-tracker.db \
+  -v forma_data:/app/data \
+  ghcr.io/dhruvcx-1/forma:latest /usr/local/bin/forma-backend --init-db
+
 # Start Forma
 docker run -d \
   --name forma \
   --restart unless-stopped \
   -p 3001:3001 \
-  -e NODE_ENV=production \
   -e PORT=3001 \
   -e COOKIE_SECRET="replace-with-a-long-random-secret" \
   -v forma_data:/app/data \
@@ -175,7 +180,7 @@ Prefer tracking your progress on your phone?
 Download the latest Android APK:
 
 <p align="center">
-  <a href="https://github.com/dhruvcx-1/Forma/releases/tag/android-latest">
+  <a href="https://github.com/dhruvcx-1/Forma/releases/latest">
     <img src="https://img.shields.io/badge/Download-Android%20APK-34A853?style=for-the-badge&logo=android&logoColor=white" alt="Download Android APK">
   </a>
   <a href="https://apps.obtainium.imranr.dev/redirect?r=obtainium%3A%2F%2Fapp%2F%257B%2522id%2522%253A%2522com.deshmesh.forma%2522%252C%2522url%2522%253A%2522https%253A%252F%252Fgithub.com%252Fdhruvcx-1%252FForma%2522%252C%2522author%2522%253A%2522dhruvcx-1%2522%252C%2522name%2522%253A%2522Forma%2522%257D">
@@ -203,7 +208,7 @@ The public APK does not have a hardcoded server address. Your selected server UR
 
 1. Install Obtainium and tap **Add app**.
 2. Choose **GitHub** as the source and enter `https://github.com/dhruvcx-1/Forma`.
-3. In the app's source options, use the APK filter regex `^Forma-Android-v[0-9]+\.[0-9]+\.[0-9]+\.apk$` to select versioned public APKs and skip the `android-latest` prerelease or personal builds.
+3. In the app's source options, use the APK filter regex `^Forma-Android-v[0-9]+\.[0-9]+\.[0-9]+\.apk$` to select versioned public APKs.
 4. Select the latest stable versioned release and add Forma.
 5. Install the APK, open Forma, and enter the URL of your own Forma server.
 
@@ -260,22 +265,23 @@ Here's everything you need.
 
 | Dependency | Version |
 |---|---|
-| Node.js | 22 |
-| npm | Included with Node.js |
+| Rust | Stable toolchain |
+| Cargo | Included with Rust |
 | Flutter | 3.47.9 or compatible stable SDK |
 | Android Studio | Required only for Android development |
 | Android SDK | Required only for Android development |
 
-### 1. Clone and install backend dependencies
+### 1. Initialize and run the Rust backend
 
 From the repository root:
 
 ```bash
-npm ci
-npm run dev
+$env:DATABASE_PATH = (Join-Path $PWD 'packages/backend-rust/data/rust-dev.db')
+cargo run --locked --manifest-path packages/backend-rust/Cargo.toml -- --init-db
+cargo run --locked --manifest-path packages/backend-rust/Cargo.toml
 ```
 
-This starts the Node.js backend.
+Use a disposable database path. Initialization only creates an empty schema and refuses older or partially populated databases.
 
 ### 2. Launch the Flutter Web application
 
@@ -351,11 +357,11 @@ The Docker build automatically generates and packages the Flutter Web applicatio
 
 We want Forma to stay reliable as it grows.
 
-Run the backend checks from the repository root:
+Run backend checks from the repository root:
 
 ```bash
-npm test
-npm run build
+cargo test --locked --manifest-path packages/backend-rust/Cargo.toml
+cargo check --locked --manifest-path packages/backend-rust/Cargo.toml
 ```
 
 Run Flutter checks from `packages/flutter_app`:
@@ -364,27 +370,6 @@ Run Flutter checks from `packages/flutter_app`:
 flutter analyze
 flutter test
 ```
-
-### Demo data
-
-Want to explore Forma without entering everything manually?
-
-You can populate a disposable local database with demonstration data.
-
-Set `DATABASE_PATH` to a new database file before starting the backend, then run:
-
-```bash
-npm run db:seed
-```
-
-**Demo credentials:**
-
-| Field | Value |
-|---|---|
-| Username | `demo` |
-| Password | `password123` |
-
-⚠️ **Warning:** The seeder resets and repopulates the selected database. Never run it against a database containing real user data.
 
 ---
 
@@ -397,9 +382,8 @@ Forma combines a modern cross-platform frontend with a lightweight, self-hostabl
 | Frontend | Flutter & Dart |
 | Design system | Material 3 |
 | Charts | `fl_chart` & custom Flutter widgets |
-| Backend | Node.js 24 LTS, Fastify & TypeScript |
-| Validation | Zod |
-| Database | SQLite (`better-sqlite3`) with WAL |
+| Backend | Rust, Axum & rusqlite |
+| Database | SQLite with WAL |
 | Authentication | Argon2id password hashing |
 | Deployment | Docker & Docker Compose |
 | CI/CD | GitHub Actions |
@@ -410,7 +394,7 @@ Forma combines a modern cross-platform frontend with a lightweight, self-hostabl
            ┌─────────────────────┐
            │    Forma Server    │
            │                     │
-           │   Node.js + Fastify │
+           │   Rust + Axum       │
            │                     │
            │    ┌───────────┐    │
            │    │  SQLite   │    │
@@ -432,20 +416,12 @@ Forma combines a modern cross-platform frontend with a lightweight, self-hostabl
 
 ### Automated builds & releases
 
-GitHub Actions handles the project's automated validation and distribution.
+GitHub Actions handles release distribution when a version tag is pushed.
 
-- Validates the backend and Flutter application.
-- Builds a host-configurable Android APK for each version tag (`v1.2.3` → `Forma-Android-v1.2.3.apk`).
-- Publishes multi-architecture Docker images (`amd64` and `arm64`).
-- Publishes Docker images to [GitHub Container Registry](https://github.com/dhruvcx-1/Forma/pkgs/container/forma).
-- Attaches master-branch builds to the `android-latest` prerelease.
-- Creates a versioned GitHub Release and attaches its APK when a `v*.*.*` tag is pushed.
-
-The rolling `android-latest` prerelease keeps only its current APK. Versioned releases retain their own APK assets for older installs and Obtainium history.
-
-Want a personal APK with a predefined server address?
-
-Configure the `FORMA_PERSONAL_API_BASE_URL` repository secret. GitHub Actions can then build a separate personal APK without changing the public release APK.
+- Builds the host-configurable Android APK and multi-architecture Rust Docker image in parallel.
+- Publishes the Docker image to [GitHub Container Registry](https://github.com/dhruvcx-1/Forma/pkgs/container/forma) with both the version tag and `latest`.
+- Attaches the APK to the versioned GitHub Release.
+- Does not run builds or validation on ordinary branch pushes.
 
 ### Want to learn more?
 

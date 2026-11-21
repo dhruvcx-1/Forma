@@ -1,7 +1,7 @@
 name: forma
 description: Forma health and body progress tracker
 publish_to: none
-version: 1.0.8+9
+version: 1.1.0+10
 environment:
   sdk: '>=3.3.0 <4.0.0'
 dependencies:
@@ -21,6 +21,7 @@ dependencies:
   shared_preferences: ^2.3.3
   file_picker: ^13.4.0
   file_saver: ^0.7.0
+  dynamic_color: 2.1.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
